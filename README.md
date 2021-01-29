@@ -1,5 +1,6 @@
-[![nuts-foundation](https://circleci.com/gh/nuts-foundation/nuts-node.svg?style=svg)](https://circleci.com/gh/nuts-foundation/nuts-node)
+[![nuts-foundation](https://circleci.com/gh/nuts-foundation/go-leia.svg?style=svg)](https://circleci.com/gh/nuts-foundation/go-leia)
 
+[![nuts-foundation](https://codecov.io/gh/nuts-foundation/go-leia/branch/master/graph/badge.svg)](https://codecov.io/gh/nuts-foundation/go-leia)
 
 # go-leia
 
