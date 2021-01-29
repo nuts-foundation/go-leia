@@ -1,3 +1,6 @@
+[![nuts-foundation](https://circleci.com/gh/nuts-foundation/nuts-node.svg?style=svg)](https://circleci.com/gh/nuts-foundation/nuts-node)
+
+
 # go-leia
 
 Go Lightweigt Embedded Indexed (JSON) Archive

@@ -41,7 +41,7 @@ func TestEntry_Add(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		err := entry.Add(Reference("hello"))
+		err := entry.Add(Reference("hell2"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -60,7 +60,7 @@ func TestEntry_Slice(t *testing.T) {
 	})
 
 	t.Run("ok - 2 entries", func(t *testing.T) {
-		err := entry.Add(Reference("hello"))
+		err := entry.Add(Reference("hell2"))
 
 		if !assert.NoError(t, err) {
 			return
