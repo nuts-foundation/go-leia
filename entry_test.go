@@ -78,7 +78,6 @@ func TestEntry_Slice(t *testing.T) {
 
 		slice := entry.Slice()
 		assert.Len(t, slice, 2)
-		assert.Equal(t, Reference("hello"), slice[0])
 	})
 }
 
