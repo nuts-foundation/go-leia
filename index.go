@@ -40,14 +40,14 @@ type Index interface {
 	Match(json string) (matches []interface{})
 
 	// AddIfMatch adds a reference of a document to the index if the index path matches.
-	AddIfMatch(tx *bbolt.Tx, doc Document, h []byte) error
+	AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error
 
 	// DeleteIfMatch removes a reference of a document form the index.
-	DeleteIfMatch(tx *bbolt.Tx, doc Document, h []byte) error
+	DeleteIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error
 }
 
 // NewIndex creates a new index with name and given JSON search path.
-func NewIndex(name string, jsonPath string) (Index, error) {
+func NewIndex(name string, jsonPath string) Index {
 	i := index{
 		name: name,
 		jsonPath: jsonPath,
@@ -121,17 +121,17 @@ func (i index) copy() Index {
 	}
 }
 
-func (i index) withParts() (Index, error) {
+func (i index) withParts() Index {
 	parts := strings.Split(i.jsonPath, ".")
 	for _, p := range parts {
 		i.parts = append(i.parts, p)
 	}
 
-	return i.copy(), nil
+	return i.copy()
 }
 
 
-func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, h []byte) error {
+func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
 	iBucket := tx.Bucket(i.Bucket())
 	val := i.Match(string(doc))
 
@@ -141,16 +141,16 @@ func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, h []byte) error {
 			return err
 		}
 
-		ref := iBucket.Get(b)
+		entryBytes := iBucket.Get(b)
 		var entry Entry
 
-		if len(ref) == 0 {
+		if len(entryBytes) == 0 {
 			entry = EntryFrom(ref)
 		} else {
-			if err := entry.Unmarshal(ref); err != nil {
+			if err := entry.Unmarshal(entryBytes); err != nil {
 				return err
 			}
-			entry.Add(h)
+			entry.Add(ref)
 		}
 
 		iBytes, err := entry.Marshal()
@@ -167,7 +167,7 @@ func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, h []byte) error {
 }
 
 
-func (i index) DeleteIfMatch(tx *bbolt.Tx, doc Document, h []byte) error {
+func (i index) DeleteIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
 	iBucket := tx.Bucket(i.Bucket())
 	val := i.Match(string(doc))
 
@@ -177,17 +177,17 @@ func (i index) DeleteIfMatch(tx *bbolt.Tx, doc Document, h []byte) error {
 			return err
 		}
 
-		ref := iBucket.Get(b)
+		entryBytes := iBucket.Get(b)
 		var entry Entry
 
-		if len(ref) == 0 {
+		if len(entryBytes) == 0 {
 			continue
 		}
 
-		if err := entry.Unmarshal(ref); err != nil {
+		if err := entry.Unmarshal(entryBytes); err != nil {
 			return err
 		}
-		entry.Delete(h)
+		entry.Delete(ref)
 
 		if entry.Size() > 0 {
 			iBytes, err := entry.Marshal()

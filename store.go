@@ -66,8 +66,8 @@ func (s *Store) Add(jsonSet []Document) error {
 		bucket := tx.Bucket([]byte(documents))
 
 		for _, doc := range jsonSet {
-			h := NewDocument(doc)
-			err := bucket.Put(h, doc)
+			ref := NewReference(doc)
+			err := bucket.Put(ref, doc)
 			if err != nil {
 				return err
 			}
@@ -75,7 +75,7 @@ func (s *Store) Add(jsonSet []Document) error {
 			// indices
 			// buckets are cached within tx
 			for _, i := range s.indices {
-				err =  i.AddIfMatch(tx, doc, h)
+				err =  i.AddIfMatch(tx, doc, ref)
 				if err != nil {
 					return err
 				}
@@ -92,7 +92,7 @@ func (s *Store) Delete(doc Document) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(documents))
 
-		h := NewDocument(doc)
+		h := NewReference(doc)
 		err := bucket.Delete(h)
 		if err != nil {
 			return err

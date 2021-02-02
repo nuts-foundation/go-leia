@@ -17,34 +17,28 @@
 package leia
 
 import (
-	"crypto/sha256"
 	"encoding/hex"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-const boltDBFileMode = 0600
-const documents = "documents"
+func TestNewDocument(t *testing.T) {
+	d := NewReference([]byte("hello"))
+	h := hex.EncodeToString(d)
 
-// Document represents a JSON document in []byte format
-type Document []byte
-
-// NewReference calculates the sha256 of a piece of data and returns it as reference type
-func NewReference(data []byte) Reference {
-	s := sha256.Sum256(data)
-	var b = make([]byte, 32)
-	copy(b, s[:])
-
-	return b
+	assert.Equal(t, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", h)
 }
 
-// Reference equals a document hash. In an index, the values are references to docs.
-type Reference []byte
+func TestReference_EncodeToString(t *testing.T) {
+	ref := Reference("ref")
+	h := ref.EncodeToString()
 
-// EncodeToString encodes the reference as hex encoded string
-func (r Reference) EncodeToString() string {
-	return hex.EncodeToString(r)
+	assert.Equal(t, "726566", h)
 }
 
-// ByteSize returns the size of the reference, eg: 32 bytes for a sha256
-func (r Reference) ByteSize() int {
-	return len(r)
+func TestReference_ByteSize(t *testing.T) {
+	ref := Reference("ref")
+
+	assert.Equal(t, 3, ref.ByteSize())
 }

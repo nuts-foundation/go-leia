@@ -108,11 +108,11 @@ var jsonTemplate1 = `
 	"list2": ["%s", "%s"]
 }
 `
-var indexID, _ = NewIndex("id","id")
-var indexInt, _ = NewIndex("intId","intId")
-var indexObj, _ = NewIndex("obj","obj.key")
-var indexList, _ = NewIndex("list","list.key")
-var indexList2, _ = NewIndex("list2","list2")
+var indexID = NewIndex("id","id")
+var indexInt = NewIndex("intId","intId")
+var indexObj = NewIndex("obj","obj.key")
+var indexList = NewIndex("list","list.key")
+var indexList2 = NewIndex("list2","list2")
 
 func genJson(i int) []byte {
 	id := fmt.Sprintf("ID%d", i)

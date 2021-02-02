@@ -51,6 +51,16 @@ func TestEntry_Add(t *testing.T) {
 	})
 }
 
+func TestEntry_Delete(t *testing.T) {
+	entry := EntryFrom(Reference("hello"))
+
+	t.Run("ok", func(t *testing.T) {
+		entry.Delete(Reference("hello"))
+
+		assert.Equal(t, 0, entry.Size())
+	})
+}
+
 func TestEntry_Slice(t *testing.T) {
 	entry := EntryFrom(Reference("hello"))
 
