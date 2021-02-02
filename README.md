@@ -10,12 +10,6 @@ built upon bbolt
 
 ## todo
 
-- cleanup (types, interfaces)
-- testing
-- performance test
-
-later
-
 - compound index
 - range logic
 - time type (rfc3337 will work?)
