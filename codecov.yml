@@ -1,0 +1,4 @@
+ignore:
+  - "main.go"
+github_checks:
+  annotations: false
