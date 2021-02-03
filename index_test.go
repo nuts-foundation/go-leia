@@ -41,7 +41,7 @@ func TestIndex_Match(t *testing.T) {
 	t.Run("single string value", func(t *testing.T) {
 		json := "{\"field\":\"value\"}"
 
-		matches := i.Match(json)
+		matches, _ := i.Match(json)
 
 		assert.Len(t, matches, 1)
 		assert.Equal(t, "value", matches[0].(string))
@@ -51,7 +51,7 @@ func TestIndex_Match(t *testing.T) {
 	t.Run("single number value", func(t *testing.T) {
 		json := "{\"field\":1}"
 
-		matches := i.Match(json)
+		matches, _ := i.Match(json)
 
 		assert.Len(t, matches, 1)
 		assert.Equal(t, float64(1), matches[0].(float64))
@@ -61,7 +61,7 @@ func TestIndex_Match(t *testing.T) {
 	t.Run("multiple string values", func(t *testing.T) {
 		json := "{\"field\":[\"value\", \"value\"]}"
 
-		matches := i.Match(json)
+		matches, _ := i.Match(json)
 
 		assert.Len(t, matches, 2)
 		assert.Equal(t, "value", matches[0].(string))
@@ -71,7 +71,7 @@ func TestIndex_Match(t *testing.T) {
 	t.Run("multiple number values", func(t *testing.T) {
 		json := "{\"field\":[1,0.1]}"
 
-		matches := i.Match(json)
+		matches, _ := i.Match(json)
 
 		assert.Len(t, matches, 2)
 		assert.Equal(t, float64(0.1), matches[1].(float64))
@@ -82,10 +82,19 @@ func TestIndex_Match(t *testing.T) {
 		i := NewIndex("name", "field.sub")
 		json := "{\"field\":[{\"sub\":\"value\"}, {\"sub\":\"value\"}]}"
 
-		matches := i.Match(json)
+		matches, _ := i.Match(json)
 
 		assert.Len(t, matches, 2)
 		assert.Equal(t, "value", matches[0].(string))
 
+	})
+
+	t.Run("error - invalid json", func(t *testing.T) {
+		i := NewIndex("name", "field.sub")
+		json := "}"
+
+		_, err := i.Match(json)
+
+		assert.Error(t, err)
 	})
 }

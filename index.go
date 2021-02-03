@@ -36,8 +36,8 @@ type Index interface {
 	// Bucket returns the bucket identifier where index entries are stored
 	Bucket() []byte
 
-	// Match returns the matches found in a JSON document.
-	Match(json string) (matches []interface{})
+	// Match returns the matches found in a JSON document. An error is returned when the json isn't valid.
+	Match(json string) ([]interface{}, error)
 
 	// AddIfMatch adds a reference of a document to the index if the index path matches.
 	AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error
@@ -70,8 +70,12 @@ func (i index) Bucket() []byte {
 	return []byte(s)
 }
 
-func (i index) Match(json string) (matches []interface{}) {
+func (i index) Match(json string) (matches []interface{}, err error) {
 	jsonq := gojsonq.New().FromString(json)
+
+	if err = jsonq.Error(); err != nil {
+		return
+	}
 
 	matches = i.match(i.parts, jsonq)
 
@@ -133,7 +137,10 @@ func (i index) withParts() Index {
 
 func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
 	iBucket := tx.Bucket(i.Bucket())
-	val := i.Match(string(doc))
+	val, err := i.Match(string(doc))
+	if err != nil {
+		return err
+	}
 
 	for _, key := range val {
 		b, err := toBytes(key)
@@ -169,7 +176,10 @@ func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
 
 func (i index) DeleteIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
 	iBucket := tx.Bucket(i.Bucket())
-	val := i.Match(string(doc))
+	val, err := i.Match(string(doc))
+	if err != nil {
+		return err
+	}
 
 	for _, key := range val {
 		b, err := toBytes(key)

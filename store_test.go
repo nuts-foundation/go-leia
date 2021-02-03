@@ -41,27 +41,58 @@ func TestNewStore(t *testing.T) {
 
 var json = []byte(`
 {
-	"key": "value"
+	"key": "value",
+	"other": "some other value"
+}
+`)
+
+var json2 = []byte(`
+{
+	"key": "value2"
+}
+`)
+
+var json3 = []byte(`
+{
+	"key": "value",
+	"other": "also a value"
 }
 `)
 
 func TestStore_Add(t *testing.T) {
-	dir := testDirectory(t)
+	t.Run("ok - single doc in i ndex", func(t *testing.T) {
+		dir := testDirectory(t)
+		s, _ := NewStore(dir)
 
-	s, _ := NewStore(dir)
-	doc := Document(json)
+		err := s.Add([]Document{json})
 
-	err := s.Add([]Document{doc})
+		assert.NoError(t, err)
+	})
 
-	assert.NoError(t, err)
+	t.Run("ok - multi doc in index", func(t *testing.T) {
+		dir := testDirectory(t)
+		s, _ := NewStore(dir)
+
+		err := s.Add([]Document{json, json3})
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("error - invalid json when index is used", func(t *testing.T) {
+		dir := testDirectory(t)
+		s, _ := NewStore(dir, NewIndex("index", "key"))
+
+		err := s.Add([]Document{[]byte("{")})
+
+		assert.Error(t, err)
+	})
 }
 
 func TestStore_Get(t *testing.T) {
 	dir := testDirectory(t)
 	s, _ := NewStore(dir)
-	doc := Document(json)
-	s.Add([]Document{doc})
-	ref := NewReference(doc)
+	s.Add([]Document{json})
+	ref := NewReference(json)
 
 	t.Run("ok", func(t *testing.T) {
 		d, err := s.Get(ref)
@@ -88,10 +119,23 @@ func TestStore_Find(t *testing.T) {
 	i := NewIndex("index", "key")
 	dir := testDirectory(t)
 	s, _ := NewStore(dir, i)
-	doc := Document(json)
-	s.Add([]Document{doc})
+	s.Add([]Document{json, json2, json3})
 
-	t.Run("ok", func(t *testing.T) {
+	t.Run("ok - single result", func(t *testing.T) {
+		d, err := s.Find(StringSearchOption{
+			index: "index",
+			value: "value2",
+		})
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, d, 1)
+		assert.Equal(t, json2, []byte(d[0]))
+	})
+
+	t.Run("ok - multi result", func(t *testing.T) {
 		d, err := s.Find(StringSearchOption{
 			index: "index",
 			value: "value",
@@ -101,8 +145,7 @@ func TestStore_Find(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, d, 1)
-		assert.Equal(t, json, []byte(d[0]))
+		assert.Len(t, d, 2)
 	})
 
 	t.Run("not found", func(t *testing.T) {
@@ -123,12 +166,11 @@ func TestStore_Delete(t *testing.T) {
 	i := NewIndex("index", "key")
 	dir := testDirectory(t)
 	s, _ := NewStore(dir, i)
-	doc := Document(json)
-	s.Add([]Document{doc})
-	ref := NewReference(doc)
+	s.Add([]Document{json, json2, json3})
+	ref := NewReference(json2)
 
 	t.Run("ok", func(t *testing.T) {
-		err := s.Delete(doc)
+		err := s.Delete(json2)
 
 		if !assert.NoError(t, err) {
 			return
@@ -137,6 +179,37 @@ func TestStore_Delete(t *testing.T) {
 		d, _ := s.Get(ref)
 
 		assert.Nil(t, d)
+	})
+
+	t.Run("ok - non-existing", func(t *testing.T) {
+		err := s.Delete([]byte("{}"))
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("ok - part of multiple", func(t *testing.T) {
+		err := s.Delete(json)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		d, err := s.Find(StringSearchOption{
+			index: "index",
+			value: "value",
+		})
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, d, 1)
+	})
+
+	t.Run("error - invalid json when index is used", func(t *testing.T) {
+		err := s.Delete([]byte("{"))
+
+		assert.Error(t, err)
 	})
 }
 

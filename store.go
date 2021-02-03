@@ -75,7 +75,7 @@ func (s *Store) Add(jsonSet []Document) error {
 			// indices
 			// buckets are cached within tx
 			for _, i := range s.indices {
-				err =  i.AddIfMatch(tx, doc, ref)
+				err = i.AddIfMatch(tx, doc, ref)
 				if err != nil {
 					return err
 				}
