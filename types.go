@@ -26,8 +26,9 @@ import (
 )
 
 const boltDBFileMode = 0600
-const documents = "documents"
 const KeyDelimiter = 0x10
+const collectionBucket = "_leia"
+
 
 // Document represents a JSON document in []byte format
 type Document []byte

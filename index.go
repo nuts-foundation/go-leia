@@ -24,11 +24,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-type IStore interface {
-	// Collection creates or returns a collection. On db level it's a bucket
-	Collection(name string) Collection
-}
-
 // Index describes an index. An index is based on a json path and has a name.
 // The name is used for storage but also as identifier in search options.
 type Index interface {
@@ -37,10 +32,10 @@ type Index interface {
 
 	// AddDocument indexes the document.
 	// It will only be indexed if the complete index matches.
-	Add(tx *bbolt.Tx, doc Document) error
+	Add(tx *bbolt.Tx, ref Reference, doc Document) error
 
 	// Delete document from the index
-	Delete(tx *bbolt.Tx, doc Document) error
+	Delete(tx *bbolt.Tx, ref Reference, doc Document) error
 
 	// IsMatch determines if this index can be used for the given query. The higher the return value, the more likely it is useful.
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
@@ -76,14 +71,14 @@ func (i *index) Name() string {
 	return i.name
 }
 
-func (i *index) Add(tx *bbolt.Tx, doc Document) error {
+func (i *index) Add(tx *bbolt.Tx, ref Reference, doc Document) error {
 	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
 	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
-	return addDocumentR(cBucket, i.indexParts, Key{}, doc)
+	return addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
 // addDocumentR, like Add but recursive
-func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Document) error {
+func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -92,7 +87,6 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Documen
 	// exit condition
 	if len(parts) == 1 {
 		// all matches to be added to current bucket
-		ref := doc.Reference()
 		for _, m := range matches {
 			key := ComposeKey(cKey, m)
 			_ = addRefToBucket(bucket, key, ref)
@@ -103,7 +97,7 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Documen
 	// continue recursion
 	for _, m := range matches {
 		nKey := ComposeKey(cKey, m)
-		return addDocumentR(bucket, parts[1:], nKey, doc)
+		return addDocumentR(bucket, parts[1:], nKey, ref, doc)
 	}
 
 	// no matches for the document and this part of the index
@@ -111,7 +105,7 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Documen
 }
 
 // addDocumentR, like Add but recursive
-func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Document) error {
+func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -119,8 +113,6 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Docu
 
 	// exit condition
 	if len(parts) == 1 {
-		// all matches to be added to current bucket
-		ref := doc.Reference()
 		for _, m := range matches {
 			key := ComposeKey(cKey, m)
 			_ = removeRefFromBucket(bucket, key, ref)
@@ -131,17 +123,17 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Docu
 	// continue recursion
 	for _, m := range matches {
 		nKey := ComposeKey(cKey, m)
-		return removeDocumentR(bucket, parts[1:], nKey, doc)
+		return removeDocumentR(bucket, parts[1:], nKey, ref, doc)
 	}
 
 	// no matches for the document and this part of the index
 	return nil
 }
 
-func (i *index) Delete(tx *bbolt.Tx, doc Document) error {
+func (i *index) Delete(tx *bbolt.Tx, ref Reference, doc Document) error {
 	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
 	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
-	return removeDocumentR(cBucket, i.indexParts, Key{}, doc)
+	return removeDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location

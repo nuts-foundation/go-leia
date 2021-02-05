@@ -47,7 +47,15 @@ func main() {
 		leia.NewJSONIndexPart("sublist","list.subList"),
 	)
 
-	s, err := leia.NewStore("./test/", compoundIndex)
+	s, err := leia.NewStore("./test/documents.db")
+	if err != nil {
+		panic(err)
+	}
+	c := s.Collection("json")
+	if err != nil {
+		panic(err)
+	}
+	err = c.AddIndex(compoundIndex)
 	if err != nil {
 		panic(err)
 	}
@@ -63,7 +71,7 @@ func main() {
 	//			}
 	//		}
 	//	}
-	//	err = s.Add(docs)
+	//	err = c.Add(docs)
 	//	if err != nil {
 	//		panic(err)
 	//	}
@@ -77,7 +85,7 @@ func main() {
 		And(leia.Eq("sublist","SUBLIST.VAL16"))
 
 	t := time.Now()
-	j, err := s.Find(query)
+	j, err := c.Find(query)
 	if err != nil {
 		panic(err)
 	}
@@ -89,7 +97,7 @@ func main() {
 		And(leia.Range("sublist","SUBLIST.VAL16", "SUBLIST.VAL17"))
 
 	t = time.Now()
-	j, err = s.Find(query2)
+	j, err = c.Find(query2)
 	if err != nil {
 		panic(err)
 	}
