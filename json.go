@@ -67,6 +67,10 @@ func (j jsonIndexPart) matchR(parts []string, jsonq *gojsonq.JSONQ) []interface{
 	jsonq = jsonq.From(parts[0])
 	val := jsonq.Get()
 
+	if val == nil {
+		return []interface{}{}
+	}
+
 	if a, ok := val.([]interface{}); ok {
 		if len(parts) == 1 {
 			return a
@@ -82,18 +86,10 @@ func (j jsonIndexPart) matchR(parts []string, jsonq *gojsonq.JSONQ) []interface{
 		return ra
 	}
 
-	if v, ok := val.(string); ok {
-		return []interface{}{v}
-	}
-
-	if v, ok := val.(float64); ok {
-		return []interface{}{v}
-	}
-
 	if m, ok := val.(map[string]interface{}); ok {
 		gjs := gojsonq.New().FromInterface(m)
 		return j.matchR(parts[1:], gjs)
 	}
 
-	return []interface{}{}
+	return []interface{}{val}
 }
