@@ -17,44 +17,105 @@
 package leia
 
 import (
-	"encoding/binary"
-	"math"
+	"bytes"
 )
 
-// SearchOption is the interface for defining which index to use for searching
-type SearchOption interface {
-	// Index corresponds to the name of an index
-	Index() string
-	// Value to be searched on
-	Value() []byte
+type Query interface {
+	// And adds a condition to query on
+	And(part QueryPart) Query
+
+	// Parts returns the different parts of the query
+	Parts() []QueryPart
 }
 
-// StringSearchOption holds search options for a query on a string
-type StringSearchOption struct {
-	index string
-	value string
+type QueryPart interface {
+
+	// Name returns the name that matches the index part
+	Name() string
+
+	// Seek returns the key for cursor.Seek
+	Seek() (Key, error)
+
+	// Condition returns true if given key falls within this condition.
+	Condition(key Key) (bool, error)
 }
 
-func (s StringSearchOption) Index() string {
-	return s.index
+// New creates a new query with an initial query part
+func New(part QueryPart) Query {
+	return query {
+		parts: []QueryPart{part},
+	}
 }
 
-func (s StringSearchOption) Value() []byte {
-	return []byte(s.value)
+// Eq creates a query part for an exact match
+func Eq(name string, value interface{}) QueryPart {
+	return eqPart{
+		name:  name,
+		value: value,
+	}
 }
 
-// FloatSearchOption holds search options for a query on a number
-type FloatSearchOption struct {
-	index string
-	value float64
+// Range creates a query part for a range query
+func Range(name string, from interface{}, till interface{}) QueryPart {
+	return rangePart{
+		name: name,
+		from: from,
+		till: till,
+	}
 }
 
-func (f FloatSearchOption) Index() string {
-	return f.index
+type query struct {
+	parts []QueryPart
 }
 
-func (f FloatSearchOption) Value() []byte {
-	var buf [8]byte
-	binary.BigEndian.PutUint64(buf[:], math.Float64bits(f.value))
-	return buf[:]
+func (q query) And(part QueryPart) Query {
+	q.parts = append(q.parts, part)
+	return q
+}
+
+func (q query) Parts() []QueryPart {
+	return q.parts
+}
+
+type eqPart struct {
+	name string
+	value interface{}
+}
+
+func (e eqPart) Name() string {
+	return e.name
+}
+
+func (e eqPart) Seek() (Key, error) {
+	return toBytes(e.value)
+}
+
+func (e eqPart) Condition(key Key) (bool, error) {
+	b, err := toBytes(e.value)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Compare(key, b) == 0, nil
+}
+
+type rangePart struct {
+	name string
+	from interface{}
+	till interface{}
+}
+
+func (r rangePart) Name() string {
+	return r.name
+}
+
+func (r rangePart) Seek() (Key, error) {
+	return toBytes(r.from)
+}
+
+func (r rangePart) Condition(key Key) (bool, error) {
+	b, err := toBytes(r.till)
+	if err != nil {
+		return false, err
+	}
+	return bytes.Compare(key, b) <= 0, nil
 }

@@ -38,7 +38,7 @@ func EntryFrom(ref Reference) Entry {
 	references[ref.EncodeToString()] = ref
 
 	return Entry{
-		RefSize: ref.ByteSize(),
+		RefSize:    ref.ByteSize(),
 		references: references,
 	}
 }
@@ -120,4 +120,3 @@ func (e *Entry) Unmarshal(bytes []byte) error {
 func (e *Entry) Size() int {
 	return len(e.references)
 }
-

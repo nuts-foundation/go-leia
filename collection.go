@@ -16,3 +16,21 @@
 
 package leia
 
+type Collection interface {
+	AddIndex(index Index) error
+	DropIndex(name string) error
+	Indices() []Index
+
+	Add(doc Document) error
+	Get(ref Reference) (Document, error)
+	Delete(ref Reference) error
+
+	Find(query Query) ([]Reference, error)
+
+	Reference(doc Document) (Reference, error)
+}
+
+type KeyExtractor interface {
+	// Key checks if the document can be indexed and returns the Key if so, nil otherwise
+	Key(document Document) ([]Key, error)
+}

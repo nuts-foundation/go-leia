@@ -25,15 +25,16 @@ import (
 
 // Store holds a reference to the bbolt data file and holds configured indices.
 type Store struct {
-	db *bbolt.DB
+	db      *bbolt.DB
 	indices []Index
 }
 
 // NewStore creates a new store. The DB file is stored at the given path and configred with the given indices.
 func NewStore(path string, indices ...Index) (*Store, error) {
+	// todo: detect duplicate index names
 	dbFile := fmt.Sprintf("%s/%s.db", path, documents)
-	db, err := bbolt.Open(dbFile, boltDBFileMode, bbolt.DefaultOptions); if
-	err != nil {
+	db, err := bbolt.Open(dbFile, boltDBFileMode, bbolt.DefaultOptions)
+	if err != nil {
 		return nil, err
 	}
 
@@ -49,11 +50,6 @@ func (s *Store) init(indices ...Index) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		if _, err := tx.CreateBucketIfNotExists([]byte(documents)); err != nil {
 			return err
-		}
-		for _, i := range indices {
-			if _, err := tx.CreateBucketIfNotExists(i.Bucket()); err != nil {
-				return err
-			}
 		}
 		return nil
 	})
@@ -75,7 +71,7 @@ func (s *Store) Add(jsonSet []Document) error {
 			// indices
 			// buckets are cached within tx
 			for _, i := range s.indices {
-				err = i.AddIfMatch(tx, doc, ref)
+				err = i.Add(tx, doc)
 				if err != nil {
 					return err
 				}
@@ -86,13 +82,40 @@ func (s *Store) Add(jsonSet []Document) error {
 	})
 }
 
+func (s *Store) Find(query Query) ([]Document, error) {
+	var docs []Document
+
+	i := s.findIndex(query)
+
+	if i == nil {
+		return nil, errors.New("no index found")
+	}
+
+	s.db.View(func(tx *bbolt.Tx) error {
+		refs, err := i.Find(tx, query)
+		if err != nil {
+			return err
+		}
+
+		// todo change to collection name
+		bucket := tx.Bucket([]byte("documents"))
+		docs = make([]Document, len(refs))
+		for i, r := range refs {
+			docs[i] = bucket.Get(r)
+		}
+		return nil
+	})
+
+	return docs, nil
+}
+
 // Delete a document from the store, this also removes the entries from indices
 func (s *Store) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(documents))
 
-		h := NewReference(doc)
+		h := doc.Reference()
 		err := bucket.Delete(h)
 		if err != nil {
 			return err
@@ -100,7 +123,7 @@ func (s *Store) Delete(doc Document) error {
 
 		// indices
 		for _, i := range s.indices {
-			err =  i.DeleteIfMatch(tx, doc, h)
+			err = i.Delete(tx, doc)
 			if err != nil {
 				return err
 			}
@@ -110,50 +133,22 @@ func (s *Store) Delete(doc Document) error {
 	})
 }
 
-// Find documents given a search option.
-func (s *Store) Find(option SearchOption) ([]Document, error) {
-	var docs []Document
+// find a matching index.
+// The index may, at most, be one longer than the number of search options.
+// The longest index will win.
+func (s *Store) findIndex(query Query) Index {
+	// first map the indices to the number of matching search options
+	var cIndex Index
+	var cMatch float64
 
-	i, err := s.findIndex(option)
-	if err != nil {
-		return nil, err
-	}
-
-	s.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket(i.Bucket())
-
-		eBytes := bucket.Get(option.Value())
-		if eBytes == nil {
-			return nil
-		}
-
-		var entry Entry
-
-		if err := entry.Unmarshal(eBytes); err != nil {
-			return err
-		}
-
-		bucket = tx.Bucket([]byte("documents"))
-		refs := entry.Slice()
-		docs = make([]Document, len(refs))
-		for i, r := range refs {
-			docs[i] = bucket.Get(r)
-		}
-
-		return nil
-	})
-
-	return docs, nil
-}
-
-func (s *Store) findIndex(option SearchOption) (Index, error) {
 	for _, i := range s.indices {
-		if i.Name() == option.Index() {
-			return i, nil
+		m := i.IsMatch(query)
+		if m > cMatch {
+			cIndex = i
 		}
 	}
 
-	return nil, errors.New("index not found")
+	return cIndex
 }
 
 // Get returns the data for the given key or nil if not found

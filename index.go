@@ -17,214 +17,301 @@
 package leia
 
 import (
-	"encoding/binary"
+	"bytes"
 	"errors"
 	"fmt"
-	"math"
-	"strings"
 
-	"github.com/thedevsaddam/gojsonq/v2"
 	"go.etcd.io/bbolt"
 )
+
+type IStore interface {
+	// Collection creates or returns a collection. On db level it's a bucket
+	Collection(name string) Collection
+}
 
 // Index describes an index. An index is based on a json path and has a name.
 // The name is used for storage but also as identifier in search options.
 type Index interface {
-	// Name returns the name of this index.
+	// Name returns the name of this index
 	Name() string
 
-	// Bucket returns the bucket identifier where index entries are stored
-	Bucket() []byte
+	// AddDocument indexes the document.
+	// It will only be indexed if the complete index matches.
+	Add(tx *bbolt.Tx, doc Document) error
 
-	// Match returns the matches found in a JSON document. An error is returned when the json isn't valid.
-	Match(json string) ([]interface{}, error)
+	// Delete document from the index
+	Delete(tx *bbolt.Tx, doc Document) error
 
-	// AddIfMatch adds a reference of a document to the index if the index path matches.
-	AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error
+	// IsMatch determines if this index can be used for the given query. The higher the return value, the more likely it is useful.
+	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
+	IsMatch(query Query) float64
 
-	// DeleteIfMatch removes a reference of a document form the index.
-	DeleteIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error
+	// Find the references matching the query
+	Find(tx *bbolt.Tx, query Query) ([]Reference, error)
 }
 
-// NewIndex creates a new index with name and given JSON search path.
-func NewIndex(name string, jsonPath string) Index {
-	i := index{
+// NewIndex creates a new blank index.
+// If multiple parts are given, a compound index is created.
+// This index is only useful if at least n-1 parts are used in the query.
+func NewIndex(name string, parts ...IndexPart) Index {
+	return &index{
 		name: name,
-		jsonPath: jsonPath,
+		indexParts: parts,
 	}
-	return i.withParts()
+}
+
+type IndexPart interface {
+	// for matching against a Query
+	Name() string
+	// Keys returns the keys that matched this document. Multiple keys are combined by the index
+	Keys(document Document) ([]Key, error)
 }
 
 type index struct {
 	name string
-	jsonPath string
-	parts []string
+	indexParts []IndexPart
 }
 
-func (i index) Name() string {
+func (i *index) Name() string {
 	return i.name
 }
 
-func (i index) Bucket() []byte {
-	s := fmt.Sprintf("index_%s", i.name)
-	return []byte(s)
+func (i *index) Add(tx *bbolt.Tx, doc Document) error {
+	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
+	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
+	return addDocumentR(cBucket, i.indexParts, Key{}, doc)
 }
 
-func (i index) Match(json string) (matches []interface{}, err error) {
-	jsonq := gojsonq.New().FromString(json)
+// addDocumentR, like Add but recursive
+func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Document) error {
+	// current part
+	ip := parts[0]
 
-	if err = jsonq.Error(); err != nil {
-		return
-	}
+	matches, _ := ip.Keys(doc)
 
-	matches = i.match(i.parts, jsonq)
-
-	return
-}
-
-func (i index) match(parts []string, jsonq *gojsonq.JSONQ) []interface{} {
-	jsonq = jsonq.From(parts[0])
-	val := jsonq.Get()
-
-	if a, ok := val.([]interface{}); ok {
-		if len(parts) == 1 {
-			return a
+	// exit condition
+	if len(parts) == 1 {
+		// all matches to be added to current bucket
+		ref := doc.Reference()
+		for _, m := range matches {
+			key := ComposeKey(cKey, m)
+			_ = addRefToBucket(bucket, key, ref)
 		}
-
-		var ra []interface{}
-		for _, ai := range a {
-			gjs := gojsonq.New().FromInterface(ai)
-			interm := i.match(parts[1:], gjs)
-			ra = append(ra, interm...)
-		}
-
-		return ra
+		return nil
 	}
 
-	if v, ok := val.(string); ok {
-		return []interface{}{v}
+	// continue recursion
+	for _, m := range matches {
+		nKey := ComposeKey(cKey, m)
+		return addDocumentR(bucket, parts[1:], nKey, doc)
 	}
 
-	if v, ok := val.(float64); ok {
-		return []interface{}{v}
-	}
-
-	if m, ok := val.(map[string]interface{}); ok {
-		gjs := gojsonq.New().FromInterface(m)
-		return i.match(parts[1:], gjs)
-	}
-
-	return []interface{}{}
-}
-
-func (i index) copy() Index {
-	return index{
-		name:     i.name,
-		jsonPath: i.jsonPath,
-		parts:    i.parts,
-	}
-}
-
-func (i index) withParts() Index {
-	parts := strings.Split(i.jsonPath, ".")
-	for _, p := range parts {
-		i.parts = append(i.parts, p)
-	}
-
-	return i.copy()
-}
-
-
-func (i index) AddIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
-	iBucket := tx.Bucket(i.Bucket())
-	val, err := i.Match(string(doc))
-	if err != nil {
-		return err
-	}
-
-	for _, key := range val {
-		b, err := toBytes(key)
-		if err != nil {
-			return err
-		}
-
-		entryBytes := iBucket.Get(b)
-		var entry Entry
-
-		if len(entryBytes) == 0 {
-			entry = EntryFrom(ref)
-		} else {
-			if err := entry.Unmarshal(entryBytes); err != nil {
-				return err
-			}
-			entry.Add(ref)
-		}
-
-		iBytes, err := entry.Marshal()
-		if err != nil {
-			return err
-		}
-
-		if err := iBucket.Put(b, iBytes); err != nil {
-			return err
-		}
-	}
-
+	// no matches for the document and this part of the index
 	return nil
 }
 
+// addDocumentR, like Add but recursive
+func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, doc Document) error {
+	// current part
+	ip := parts[0]
 
-func (i index) DeleteIfMatch(tx *bbolt.Tx, doc Document, ref Reference) error {
-	iBucket := tx.Bucket(i.Bucket())
-	val, err := i.Match(string(doc))
-	if err != nil {
-		return err
+	matches, _ := ip.Keys(doc)
+
+	// exit condition
+	if len(parts) == 1 {
+		// all matches to be added to current bucket
+		ref := doc.Reference()
+		for _, m := range matches {
+			key := ComposeKey(cKey, m)
+			_ = removeRefFromBucket(bucket, key, ref)
+		}
+		return nil
 	}
 
-	for _, key := range val {
-		b, err := toBytes(key)
-		if err != nil {
-			return err
-		}
+	// continue recursion
+	for _, m := range matches {
+		nKey := ComposeKey(cKey, m)
+		return removeDocumentR(bucket, parts[1:], nKey, doc)
+	}
 
-		entryBytes := iBucket.Get(b)
-		var entry Entry
+	// no matches for the document and this part of the index
+	return nil
+}
 
-		if len(entryBytes) == 0 {
-			continue
-		}
+func (i *index) Delete(tx *bbolt.Tx, doc Document) error {
+	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
+	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
+	return removeDocumentR(cBucket, i.indexParts, Key{}, doc)
+}
 
+// addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
+func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
+	entryBytes := bucket.Get(key)
+	var entry Entry
+
+	if len(entryBytes) == 0 {
+		entry = EntryFrom(ref)
+	} else {
 		if err := entry.Unmarshal(entryBytes); err != nil {
 			return err
 		}
-		entry.Delete(ref)
+		entry.Add(ref)
+	}
 
-		if entry.Size() > 0 {
-			iBytes, err := entry.Marshal()
-			if err != nil {
-				return err
+	iBytes, err := entry.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return bucket.Put(key, iBytes)
+}
+
+// removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
+func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
+	entryBytes := bucket.Get(key)
+	var entry Entry
+
+	if len(entryBytes) == 0 {
+		return nil
+	}
+
+	if err := entry.Unmarshal(entryBytes); err != nil {
+		return err
+	}
+	entry.Delete(ref)
+
+	if entry.Size() == 0 {
+		return bucket.Delete(key)
+	}
+
+	iBytes, err := entry.Marshal()
+	if err != nil {
+		return err
+	}
+
+	return bucket.Put(key, iBytes)
+}
+
+func (i *index) IsMatch(query Query) float64 {
+	hitcount := 0
+
+	parts, err := i.sort(query)
+	if err != nil {
+		return 0.0
+	}
+
+	outer:
+	for thc, ip := range i.indexParts {
+		for _, qp := range parts {
+			if ip.Name() == qp.Name() {
+				hitcount++
 			}
-			if err := iBucket.Put(b, iBytes); err != nil {
-				return err
-			}
-		} else {
-			if err := iBucket.Delete(b); err != nil {
-				return err
+		}
+		// if a miss is encountered, do not continue. You can't skip an index lvl
+		if hitcount <= thc {
+			break outer
+		}
+	}
+
+	return float64(hitcount)/float64(len(i.indexParts))
+}
+
+func (i *index) sort(query Query) ([]QueryPart, error) {
+	var sorted = make([]QueryPart, len(query.Parts()))
+
+	for _, qp := range query.Parts() {
+		for j, ip := range i.indexParts {
+			if ip.Name() == qp.Name() {
+				if j >= len(sorted) {
+					return nil, errors.New("invalid query part")
+				}
+				sorted[j] = qp
 			}
 		}
 	}
 
-	return nil
+	return sorted, nil
 }
 
-func toBytes(data interface{}) ([]byte, error) {
-	if s, ok := data.(string); ok {
-		return []byte(s), nil
+// Find documents given a search option.
+func (i *index) Find(tx *bbolt.Tx, query Query) ([]Reference, error) {
+	var err error
+
+	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
+	cBucket := tx.Bucket([]byte(cBucketName))
+	if cBucket == nil {
+		return []Reference{}, err
 	}
-	if f, ok := data.(float64); ok {
-		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], math.Float64bits(f))
-		return buf[:], nil
+
+	// sort the parts of the Query to conform to the index key building order
+	sortedQueryParts, err := i.sort(query)
+	if err != nil {
+		return nil, err
 	}
-	return nil, errors.New("couldn't convert data to []byte")
+
+	c := cBucket.Cursor()
+
+	return findR(c, Key{}, sortedQueryParts)
+}
+
+func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, error) {
+	cPart := parts[0]
+	seek, err := cPart.Seek()
+	if err != nil {
+		return nil, err
+	}
+
+	var newRef = make([]Reference, 0)
+
+	seek = ComposeKey(sKey, seek)
+	condition := true
+	for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
+		// remove prefix (+1), Split and take first
+		pf := cKey[len(sKey)+1:]
+		if len(sKey) == 0 {
+			pf = cKey
+		}
+		pfk := Key(pf)
+		newp := pfk.Split()[0] // todo bounds check?
+
+		condition, err = cPart.Condition(newp)
+		if err != nil {
+			return nil, err
+		}
+		if condition {
+			if len(parts) > 1 {
+				nKey := ComposeKey(sKey, newp)
+				var refs []Reference
+				refs, err = findR(cursor, nKey, parts[1:])
+				if err != nil {
+					return nil, err
+				}
+				newRef = append(newRef, refs...)
+			} else {
+				ref, err := entryToSlice(entry)
+				if err != nil {
+					return nil, err
+				}
+				newRef = append(newRef, ref...)
+			}
+		} else {
+			eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
+			_, _ = cursor.Seek(eKey)
+		}
+	}
+
+	return newRef, nil
+}
+
+func entryToSlice(eBytes []byte) ([]Reference, error) {
+	if eBytes == nil {
+		return nil, nil
+	}
+
+	var entry Entry
+	if err := entry.Unmarshal(eBytes); err != nil {
+		return nil, err
+	}
+
+	return entry.Slice(), nil
 }
