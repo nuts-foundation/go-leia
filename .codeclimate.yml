@@ -9,6 +9,7 @@ checks:
 exclude_patterns:
   - "**/main.go"
   - "test.go"
+  - "*_test.go"
 plugins:
   gofmt:
     enabled: true
