@@ -6,12 +6,15 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  */
 
 package leia
@@ -40,7 +43,7 @@ type QueryPart interface {
 	Condition(key Key) (bool, error)
 }
 
-// New creates a new query with an initial query part
+// New creates a new query with an initial query part. Both begin and end are inclusive for the conditional check.
 func New(part QueryPart) Query {
 	return query {
 		parts: []QueryPart{part},
@@ -56,11 +59,11 @@ func Eq(name string, value interface{}) QueryPart {
 }
 
 // Range creates a query part for a range query
-func Range(name string, from interface{}, till interface{}) QueryPart {
+func Range(name string, begin interface{}, end interface{}) QueryPart {
 	return rangePart{
 		name: name,
-		from: from,
-		till: till,
+		begin: begin,
+		end: end,
 	}
 }
 
@@ -100,8 +103,8 @@ func (e eqPart) Condition(key Key) (bool, error) {
 
 type rangePart struct {
 	name string
-	from interface{}
-	till interface{}
+	begin interface{}
+	end interface{}
 }
 
 func (r rangePart) Name() string {
@@ -109,11 +112,11 @@ func (r rangePart) Name() string {
 }
 
 func (r rangePart) Seek() (Key, error) {
-	return toBytes(r.from)
+	return toBytes(r.begin)
 }
 
 func (r rangePart) Condition(key Key) (bool, error) {
-	b, err := toBytes(r.till)
+	b, err := toBytes(r.end)
 	if err != nil {
 		return false, err
 	}

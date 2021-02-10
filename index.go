@@ -6,12 +6,15 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  */
 
 package leia
@@ -71,8 +74,12 @@ func (i *index) Name() string {
 	return i.name
 }
 
+func (i *index) bucketName() string {
+	return fmt.Sprintf("INDEX_%s", i.Name())
+}
+
 func (i *index) Add(tx *bbolt.Tx, ref Reference, doc Document) error {
-	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
+	cBucketName := i.bucketName()
 	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
 	return addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
@@ -82,7 +89,10 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Referen
 	// current part
 	ip := parts[0]
 
-	matches, _ := ip.Keys(doc)
+	matches, err := ip.Keys(doc)
+	if err != nil {
+		return err
+	}
 
 	// exit condition
 	if len(parts) == 1 {
@@ -109,7 +119,10 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Refe
 	// current part
 	ip := parts[0]
 
-	matches, _ := ip.Keys(doc)
+	matches, err := ip.Keys(doc)
+	if err != nil {
+		return err
+	}
 
 	// exit condition
 	if len(parts) == 1 {
@@ -211,6 +224,7 @@ func (i *index) IsMatch(query Query) float64 {
 func (i *index) sort(query Query) ([]QueryPart, error) {
 	var sorted = make([]QueryPart, len(query.Parts()))
 
+	hits := 0
 	for _, qp := range query.Parts() {
 		for j, ip := range i.indexParts {
 			if ip.Name() == qp.Name() {
@@ -218,11 +232,12 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 					return nil, errors.New("invalid query part")
 				}
 				sorted[j] = qp
+				hits++
 			}
 		}
 	}
 
-	return sorted, nil
+	return sorted[:hits], nil
 }
 
 // Find documents given a search option.
@@ -253,6 +268,8 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 		return nil, err
 	}
 
+	// to prevent duplicates
+	refMap := map[string]bool{}
 	var newRef = make([]Reference, 0)
 
 	seek = ComposeKey(sKey, seek)
@@ -271,20 +288,22 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 			return nil, err
 		}
 		if condition {
+			var refs []Reference
 			if len(parts) > 1 {
 				nKey := ComposeKey(sKey, newp)
-				var refs []Reference
 				refs, err = findR(cursor, nKey, parts[1:])
-				if err != nil {
-					return nil, err
-				}
-				newRef = append(newRef, refs...)
+
 			} else {
-				ref, err := entryToSlice(entry)
-				if err != nil {
-					return nil, err
+				refs, err = entryToSlice(entry)
+			}
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range refs {
+				if _, b := refMap[r.EncodeToString()];!b {
+					refMap[r.EncodeToString()] = true
+					newRef = append(newRef, r)
 				}
-				newRef = append(newRef, ref...)
 			}
 		} else {
 			eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})

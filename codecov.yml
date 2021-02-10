@@ -1,4 +1,5 @@
 ignore:
-  - "main.go"
+  - "main/main.go"
+  - "test.go"
 github_checks:
   annotations: false

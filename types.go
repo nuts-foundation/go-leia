@@ -6,12 +6,15 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  */
 
 package leia
@@ -46,6 +49,11 @@ func (d Document) Reference() Reference {
 
 // Key is used as DB key type
 type Key []byte
+
+// String returns the string representation, only useful if a Key represents readable bytes
+func (k Key) String() string {
+	return string(k)
+}
 
 // todo: determine delimiter byte: data link escape character: 0x10
 // ComposeKey creates a new key from two keys

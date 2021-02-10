@@ -6,29 +6,32 @@
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  */
 
 package leia
 
-//
-//func TestNewIndex(t *testing.T) {
-//	i := NewIndex("name", "path.sub")
-//
-//	assert.Equal(t, "name", i.Name())
-//	assert.Equal(t, []string{"path", "sub"}, i.(index).parts)
-//}
-//
-//func TestIndex_Bucket(t *testing.T) {
-//	i := NewIndex("name", "path.sub")
-//
-//	assert.Equal(t, []byte("index_name"), i.Bucket())
-//}
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewIndex(t *testing.T) {
+	i := NewIndex("name")
+
+	assert.Equal(t, "name", i.Name())
+	assert.Len(t, i.(*index).indexParts, 0)
+}
+
 //
 //func TestIndex_Match(t *testing.T) {
 //	i := NewIndex("name", "field")

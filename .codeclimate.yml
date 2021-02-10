@@ -7,7 +7,8 @@ checks:
   return-statements:
     enabled: false
 exclude_patterns:
-  - "main.go"
+  - "**/main.go"
+  - "test.go"
 plugins:
   gofmt:
     enabled: true
