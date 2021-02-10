@@ -46,6 +46,9 @@ type Index interface {
 
 	// Find the references matching the query
 	Find(tx *bbolt.Tx, query Query) ([]Reference, error)
+
+	// BucketName returns the BucketName for this index
+	BucketName() string
 }
 
 // NewIndex creates a new blank index.
@@ -74,12 +77,12 @@ func (i *index) Name() string {
 	return i.name
 }
 
-func (i *index) bucketName() string {
+func (i *index) BucketName() string {
 	return fmt.Sprintf("INDEX_%s", i.Name())
 }
 
 func (i *index) Add(tx *bbolt.Tx, ref Reference, doc Document) error {
-	cBucketName := i.bucketName()
+	cBucketName := i.BucketName()
 	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
 	return addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }

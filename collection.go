@@ -30,7 +30,6 @@ import (
 type Collection interface {
 	AddIndex(index Index) error
 	DropIndex(name string) error
-	Indices() []Index
 
 	Add(jsonSet []Document) error
 	Get(ref Reference) (Document, error)
@@ -72,7 +71,7 @@ func (c *collection) AddIndex(index Index) error {
 
 	if err := c.db.Update(func(tx *bbolt.Tx) error {
 		// skip existing
-		if bucket := tx.Bucket([]byte(c.Name)); bucket != nil {
+		if bucket := tx.Bucket([]byte(index.BucketName())); bucket != nil {
 			return nil
 		}
 
@@ -98,28 +97,19 @@ func (c *collection) AddIndex(index Index) error {
 
 func (c *collection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		// skip non-existing
-		cBucket := tx.Bucket([]byte(c.Name))
-		if cBucket == nil {
-			return nil
-		}
-
 		var newIndices = make([]Index, len(c.IndexList))
 		j := 0
 		for _, i := range c.IndexList {
 			if name == i.Name() {
-				cBucket.DeleteBucket([]byte(i.Name()))
+				tx.DeleteBucket([]byte(i.BucketName()))
 			} else {
 				newIndices[j] = i
+				j++
 			}
 		}
 		c.IndexList = newIndices[:j]
 		return nil
 	})
-}
-
-func (c *collection) Indices() []Index {
-	return c.IndexList
 }
 
 func (c *collection) Reference(doc Document) (Reference, error) {
@@ -130,7 +120,10 @@ func (c *collection) Reference(doc Document) (Reference, error) {
 // this uses a single transaction per set.
 func (c *collection) Add(jsonSet []Document) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(c.Name))
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		if err != nil {
+			return err
+		}
 
 		for _, doc := range jsonSet {
 			ref, err := c.refMake(doc)
@@ -166,7 +159,7 @@ func (c *collection) Find(query Query) ([]Document, error) {
 		return nil, errors.New("no index found")
 	}
 
-	c.db.View(func(tx *bbolt.Tx) error {
+	err := c.db.View(func(tx *bbolt.Tx) error {
 		refs, err := i.Find(tx, query)
 		if err != nil {
 			return err
@@ -180,7 +173,7 @@ func (c *collection) Find(query Query) ([]Document, error) {
 		return nil
 	})
 
-	return docs, nil
+	return docs, err
 }
 
 // Delete a document from the store, this also removes the entries from indices

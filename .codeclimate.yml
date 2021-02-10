@@ -10,6 +10,7 @@ exclude_patterns:
   - "**/main.go"
   - "test.go"
   - "*_test.go"
+  - "*_mock.go"
 plugins:
   gofmt:
     enabled: true

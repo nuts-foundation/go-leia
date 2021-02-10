@@ -20,6 +20,8 @@
 package leia
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,8 +29,40 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 )
+
+var json = `
+{
+	"path": {
+		"part": "value",
+		"parts": ["value1"],
+		"more": [
+			{
+				"parts": 0.0
+			}
+		]
+	}
+}
+`
+
+var json2 = `
+{
+	"path": {
+		"part": "value",
+		"parts": ["value2"],
+		"more": [
+			{
+				"parts": 0.0
+			},
+			{
+				"parts": 1.0
+			}
+		]
+	}
+}
+`
 
 var invalidPathCharRegex = regexp.MustCompile("([^a-zA-Z0-9])")
 
@@ -58,4 +92,57 @@ func testDB(t *testing.T) *bbolt.DB {
 
 func normalizeTestName(t *testing.T) string {
 	return invalidPathCharRegex.ReplaceAllString(t.Name(), "_")
+}
+
+
+// assertIndexed checks if a key/value has been indexed
+func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Reference) bool {
+	err := db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte(i.(*index).BucketName()))
+		e := b.Get(key)
+
+		refs, err := entryToSlice(e)
+
+		if err != nil {
+			return err
+		}
+
+		for _, r := range refs {
+			if bytes.Compare(ref, r) == 0 {
+				return nil
+			}
+		}
+
+		return errors.New("ref not found")
+	})
+
+	return assert.NoError(t, err)
+}
+
+// assertIndexSize checks if an index has a certain size
+func assertIndexSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
+	err := db.Update(func(tx *bbolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte(i.(*index).BucketName()))
+		if err != nil {
+			panic(err)
+		}
+		assert.Equal(t, size, b.Stats().KeyN)
+		return nil
+	})
+
+	return assert.NoError(t, err)
+}
+
+// assertSize checks a bucket size
+func assertSize(t *testing.T, db *bbolt.DB, bucketName string, size int) bool {
+	err := db.Update(func(tx *bbolt.Tx) error {
+		b, err := tx.CreateBucketIfNotExists([]byte(bucketName))
+		if err != nil {
+			panic(err)
+		}
+		assert.Equal(t, size, b.Stats().KeyN)
+		return nil
+	})
+
+	return assert.NoError(t, err)
 }

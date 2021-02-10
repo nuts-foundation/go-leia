@@ -20,8 +20,6 @@
 package leia
 
 import (
-	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,37 +27,6 @@ import (
 )
 
 // These tests are for index testing. It uses the json indexPart implementation
-
-var json = `
-{
-	"path": {
-		"part": "value",
-		"parts": ["value1"],
-		"more": [
-			{
-				"parts": 0.0
-			}
-		]
-	}
-}
-`
-
-var json2 = `
-{
-	"path": {
-		"part": "value",
-		"parts": ["value2"],
-		"more": [
-			{
-				"parts": 0.0
-			},
-			{
-				"parts": 1.0
-			}
-		]
-	}
-}
-`
 
 func TestIndex_Add(t *testing.T) {
 	doc := Document(json)
@@ -111,7 +78,7 @@ func TestIndex_Add(t *testing.T) {
 		// check if both docs are indexed
 		assertIndexed(t, db, i, key, ref)
 		assertIndexed(t, db, i, key, ref2)
-		assertSize(t, db, i, 2)
+		assertIndexSize(t, db, i, 2)
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
@@ -134,7 +101,7 @@ func TestIndex_Add(t *testing.T) {
 			return i.Add(tx, ref, []byte("{}"))
 		})
 
-		assertSize(t, db, i, 0)
+		assertIndexSize(t, db, i, 0)
 	})
 }
 
@@ -151,7 +118,7 @@ func TestIndex_Delete(t *testing.T) {
 			return i.Delete(tx, ref, doc)
 		})
 
-		assertSize(t, db, i, 0)
+		assertIndexSize(t, db, i, 0)
 	})
 
 	t.Run("ok - value added and removed using recursion", func(t *testing.T) {
@@ -165,7 +132,7 @@ func TestIndex_Delete(t *testing.T) {
 			return i.Delete(tx, ref, doc)
 		})
 
-		assertSize(t, db, i, 0)
+		assertIndexSize(t, db, i, 0)
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
@@ -188,7 +155,7 @@ func TestIndex_Delete(t *testing.T) {
 			return i.Delete(tx, ref, []byte("{}"))
 		})
 
-		assertSize(t, db, i, 0)
+		assertIndexSize(t, db, i, 0)
 	})
 
 	t.Run("ok - not indexed", func(t *testing.T) {
@@ -201,7 +168,7 @@ func TestIndex_Delete(t *testing.T) {
 			return i.Delete(tx, ref, doc)
 		})
 
-		assertSize(t, db, i, 0)
+		assertIndexSize(t, db, i, 0)
 	})
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
@@ -358,39 +325,4 @@ func TestIndex_Find(t *testing.T) {
 
 		assert.Error(t, err)
 	})
-}
-
-// assertIndexed checks if a key/value has been indexed
-func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Reference) bool {
-	err := db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte(i.(*index).bucketName()))
-		e := b.Get(key)
-
-		refs, err := entryToSlice(e)
-
-		if err != nil {
-			return err
-		}
-
-		for _, r := range refs {
-			if bytes.Compare(ref, r) == 0 {
-				return nil
-			}
-		}
-
-		return errors.New("ref not found")
-	})
-
-	return assert.NoError(t, err)
-}
-
-// assertEmpty check if an index is empty
-func assertSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
-	err := db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte(i.(*index).bucketName()))
-		assert.Equal(t, size, b.Stats().KeyN)
-		return nil
-	})
-
-	return assert.NoError(t, err)
 }
