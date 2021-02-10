@@ -10,7 +10,6 @@ built upon bbolt
 
 ## todo
 
-- indices must use sub-buckets otherwise index names will overlap
 - time type (rfc3337 will work?)
 - custom key generation for better distribution per collection  
 - "or" logic?

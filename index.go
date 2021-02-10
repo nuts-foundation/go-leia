@@ -22,7 +22,6 @@ package leia
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	"go.etcd.io/bbolt"
 )
@@ -33,22 +32,22 @@ type Index interface {
 	// Name returns the name of this index
 	Name() string
 
-	// AddDocument indexes the document.
+	// Add indexes the document. It uses a sub-bucket of the given bucket.
 	// It will only be indexed if the complete index matches.
-	Add(tx *bbolt.Tx, ref Reference, doc Document) error
+	Add(bucket *bbolt.Bucket, ref Reference, doc Document) error
 
 	// Delete document from the index
-	Delete(tx *bbolt.Tx, ref Reference, doc Document) error
+	Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error
 
 	// IsMatch determines if this index can be used for the given query. The higher the return value, the more likely it is useful.
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
 
 	// Find the references matching the query
-	Find(tx *bbolt.Tx, query Query) ([]Reference, error)
+	Find(bucket *bbolt.Bucket, query Query) ([]Reference, error)
 
-	// BucketName returns the BucketName for this index
-	BucketName() string
+	// BucketName returns the bucket name for this index
+	BucketName() []byte
 }
 
 // NewIndex creates a new blank index.
@@ -77,13 +76,12 @@ func (i *index) Name() string {
 	return i.name
 }
 
-func (i *index) BucketName() string {
-	return fmt.Sprintf("INDEX_%s", i.Name())
+func (i *index) BucketName() []byte {
+	return []byte(i.Name())
 }
 
-func (i *index) Add(tx *bbolt.Tx, ref Reference, doc Document) error {
-	cBucketName := i.BucketName()
-	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
+func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
+	cBucket, _ := bucket.CreateBucketIfNotExists(i.BucketName())
 	return addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
@@ -146,9 +144,12 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Refe
 	return nil
 }
 
-func (i *index) Delete(tx *bbolt.Tx, ref Reference, doc Document) error {
-	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
-	cBucket, _ := tx.CreateBucketIfNotExists([]byte(cBucketName))
+func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error {
+	cBucket := bucket.Bucket(i.BucketName())
+	if cBucket == nil {
+		return nil
+	}
+
 	return removeDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
@@ -244,11 +245,10 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 }
 
 // Find documents given a search option.
-func (i *index) Find(tx *bbolt.Tx, query Query) ([]Reference, error) {
+func (i *index) Find(bucket *bbolt.Bucket, query Query) ([]Reference, error) {
 	var err error
 
-	cBucketName := fmt.Sprintf("INDEX_%s", i.Name())
-	cBucket := tx.Bucket([]byte(cBucketName))
+	cBucket := bucket.Bucket(i.BucketName())
 	if cBucket == nil {
 		return []Reference{}, err
 	}

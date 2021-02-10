@@ -31,7 +31,7 @@ func TestCollection_AddIndex(t *testing.T) {
 	i := testIndex(t)
 
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection("test", db)
+		c := createCollection(db)
 		err := c.AddIndex(i)
 
 		if !assert.NoError(t, err) {
@@ -42,7 +42,7 @@ func TestCollection_AddIndex(t *testing.T) {
 	})
 
 	t.Run("ok - duplicate", func(t *testing.T) {
-		c := createCollection("test", db)
+		c := createCollection(db)
 		err := c.AddIndex(i)
 
 		if !assert.NoError(t, err) {
@@ -54,7 +54,7 @@ func TestCollection_AddIndex(t *testing.T) {
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.Add([]Document{doc})
 		c.AddIndex(i)
 
@@ -63,13 +63,13 @@ func TestCollection_AddIndex(t *testing.T) {
 
 	t.Run("ok - adding existing index does nothing", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{doc})
 
 		assertIndexSize(t, db, i, 1)
 
-		c2 := createCollection("test", db)
+		c2 := createCollection(db)
 		c2.AddIndex(i)
 
 		assertIndexSize(t, db, i, 1)
@@ -82,7 +82,7 @@ func TestCollection_DropIndex(t *testing.T) {
 
 	t.Run("ok - dropping index removes refs", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.Add([]Document{doc})
 		c.AddIndex(i)
 
@@ -99,7 +99,7 @@ func TestCollection_Add(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		err := c.Add([]Document{doc})
 		if !assert.NoError(t, err) {
 			return
@@ -115,7 +115,7 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{doc})
 
@@ -124,8 +124,9 @@ func TestCollection_Delete(t *testing.T) {
 			return
 		}
 
-		assertSize(t, db, c.Name, 0)
 		assertIndexSize(t, db, i, 0)
+		// the index sub-bucket counts as 1
+		assertSize(t, db, c.Name, 1)
 	})
 }
 
@@ -135,7 +136,7 @@ func TestCollection_Find(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{doc})
 		q := New(Eq("key","value"))
@@ -151,7 +152,7 @@ func TestCollection_Find(t *testing.T) {
 
 	t.Run("error - incorrect query", func(t *testing.T) {
 		doc := Document(json)
-		c := createCollection("test", db)
+		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{doc})
 		q := New(Eq("key",struct{}{}))
@@ -162,7 +163,7 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("error - no index", func(t *testing.T) {
-		c := createCollection("test", db)
+		c := createCollection(db)
 		q := New(Eq("key","value"))
 
 		_, err := c.Find(q)
@@ -175,7 +176,7 @@ func TestCollection_Reference(t *testing.T) {
 	db := testDB(t)
 
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection("test", db)
+		c := createCollection(db)
 		doc := Document(json)
 
 		ref, err := c.Reference(doc)
@@ -194,9 +195,9 @@ func testIndex(t *testing.T) Index {
 	)
 }
 
-func createCollection(name string, db *bbolt.DB) collection {
+func createCollection(db *bbolt.DB) collection {
 	return collection {
-		Name:      name,
+		Name:      "test",
 		db:        db,
 		IndexList: []Index{},
 		refMake:   defaultReferenceCreator,

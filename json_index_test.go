@@ -28,6 +28,7 @@ import (
 
 // These tests are for index testing. It uses the json indexPart implementation
 
+
 func TestIndex_Add(t *testing.T) {
 	doc := Document(json)
 	ref, _ := defaultReferenceCreator(doc)
@@ -37,7 +38,7 @@ func TestIndex_Add(t *testing.T) {
 		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
 
 		db.Update(func(tx *bbolt.Tx) error {
-			return i.Add(tx, ref, doc)
+			return i.Add(testBucket(t, tx), ref, doc)
 		})
 
 		assertIndexed(t, db, i, []byte("value"), ref)
@@ -50,7 +51,7 @@ func TestIndex_Add(t *testing.T) {
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			return i.Add(tx, ref, doc)
+			return i.Add(testBucket(t, tx), ref, doc)
 		})
 
 		k1, _ := toBytes(0.0)
@@ -68,8 +69,9 @@ func TestIndex_Add(t *testing.T) {
 		ref2, _ := defaultReferenceCreator(doc2)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			i.Add(tx, ref, doc)
-			return i.Add(tx, ref2, doc2)
+			b := testBucket(t, tx)
+			i.Add(b, ref, doc)
+			return i.Add(b, ref2, doc2)
 		})
 
 		k1, _ := toBytes(0.0)
@@ -85,7 +87,7 @@ func TestIndex_Add(t *testing.T) {
 		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts"})
 
 		err := db.Update(func(tx *bbolt.Tx) error {
-			return i.Add(tx, ref, []byte("}"))
+			return i.Add(testBucket(t, tx), ref, []byte("}"))
 		})
 
 		assert.Error(t, err)
@@ -98,7 +100,7 @@ func TestIndex_Add(t *testing.T) {
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			return i.Add(tx, ref, []byte("{}"))
+			return i.Add(testBucket(t, tx), ref, []byte("{}"))
 		})
 
 		assertIndexSize(t, db, i, 0)
@@ -114,8 +116,9 @@ func TestIndex_Delete(t *testing.T) {
 		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
 
 		db.Update(func(tx *bbolt.Tx) error {
-			i.Add(tx, ref, doc)
-			return i.Delete(tx, ref, doc)
+			b := testBucket(t, tx)
+			i.Add(b, ref, doc)
+			return i.Delete(b, ref, doc)
 		})
 
 		assertIndexSize(t, db, i, 0)
@@ -128,8 +131,9 @@ func TestIndex_Delete(t *testing.T) {
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			i.Add(tx, ref, doc)
-			return i.Delete(tx, ref, doc)
+			b := testBucket(t, tx)
+			i.Add(b, ref, doc)
+			return i.Delete(b, ref, doc)
 		})
 
 		assertIndexSize(t, db, i, 0)
@@ -139,7 +143,9 @@ func TestIndex_Delete(t *testing.T) {
 		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts"})
 
 		err := db.Update(func(tx *bbolt.Tx) error {
-			return i.Delete(tx, ref, []byte("}"))
+			b := testBucket(t, tx)
+			i.Add(b, ref, doc)
+			return i.Delete(b, ref, []byte("}"))
 		})
 
 		assert.Error(t, err)
@@ -152,7 +158,8 @@ func TestIndex_Delete(t *testing.T) {
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			return i.Delete(tx, ref, []byte("{}"))
+			b := testBucket(t, tx)
+			return i.Delete(b, ref, []byte("{}"))
 		})
 
 		assertIndexSize(t, db, i, 0)
@@ -165,7 +172,8 @@ func TestIndex_Delete(t *testing.T) {
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
-			return i.Delete(tx, ref, doc)
+			b := testBucket(t, tx)
+			return i.Delete(b, ref, doc)
 		})
 
 		assertIndexSize(t, db, i, 0)
@@ -180,9 +188,10 @@ func TestIndex_Delete(t *testing.T) {
 		ref2, _ := defaultReferenceCreator(doc2)
 
 		err := db.Update(func(tx *bbolt.Tx) error {
-			i.Add(tx, ref, doc)
-			i.Add(tx, ref2, doc2)
-			return i.Delete(tx, ref, doc)
+			b := testBucket(t, tx)
+			i.Add(b, ref, doc)
+			i.Add(b, ref2, doc2)
+			return i.Delete(b, ref, doc)
 		})
 
 		if !assert.NoError(t, err) {
@@ -254,8 +263,9 @@ func TestIndex_Find(t *testing.T) {
 	)
 
 	db.Update(func(tx *bbolt.Tx) error {
-		i.Add(tx, ref, doc)
-		return i.Add(tx, ref2, doc2)
+		b := testBucket(t, tx)
+		i.Add(b, ref, doc)
+		return i.Add(b, ref2, doc2)
 	})
 
 	t.Run("ok - not found", func(t *testing.T) {
@@ -264,7 +274,8 @@ func TestIndex_Find(t *testing.T) {
 		var refs []Reference
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
-			refs, err = i.Find(tx, q)
+			b := testBucket(t, tx)
+			refs, err = i.Find(b, q)
 			return err
 		})
 
@@ -278,7 +289,8 @@ func TestIndex_Find(t *testing.T) {
 		var refs []Reference
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
-			refs, err = i.Find(tx, q)
+			b := testBucket(t, tx)
+			refs, err = i.Find(b, q)
 			return err
 		})
 
@@ -292,7 +304,8 @@ func TestIndex_Find(t *testing.T) {
 		var refs []Reference
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
-			refs, err = i.Find(tx, q)
+			b := testBucket(t, tx)
+			refs, err = i.Find(b, q)
 			return err
 		})
 
@@ -307,7 +320,8 @@ func TestIndex_Find(t *testing.T) {
 		var refs []Reference
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
-			refs, err = i.Find(tx, q)
+			b := testBucket(t, tx)
+			refs, err = i.Find(b, q)
 			return err
 		})
 
@@ -319,7 +333,8 @@ func TestIndex_Find(t *testing.T) {
 		q := New(Eq("key3", "value"))
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			_, err := i.Find(tx, q)
+			b := testBucket(t, tx)
+			_, err := i.Find(b, q)
 			return err
 		})
 

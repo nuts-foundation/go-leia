@@ -90,6 +90,17 @@ func testDB(t *testing.T) *bbolt.DB {
 	return db
 }
 
+func testBucket(t *testing.T, tx *bbolt.Tx) *bbolt.Bucket {
+	if tx.Writable() {
+		bucket, err := tx.CreateBucketIfNotExists([]byte("test"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		return bucket
+	}
+	return tx.Bucket([]byte("test"))
+}
+
 func normalizeTestName(t *testing.T) string {
 	return invalidPathCharRegex.ReplaceAllString(t.Name(), "_")
 }
@@ -98,7 +109,8 @@ func normalizeTestName(t *testing.T) string {
 // assertIndexed checks if a key/value has been indexed
 func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Reference) bool {
 	err := db.View(func(tx *bbolt.Tx) error {
-		b := tx.Bucket([]byte(i.(*index).BucketName()))
+		b := testBucket(t, tx)
+		b = b.Bucket(i.BucketName())
 		e := b.Get(key)
 
 		refs, err := entryToSlice(e)
@@ -122,10 +134,13 @@ func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Referenc
 // assertIndexSize checks if an index has a certain size
 func assertIndexSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
 	err := db.Update(func(tx *bbolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte(i.(*index).BucketName()))
-		if err != nil {
-			panic(err)
+		b := testBucket(t, tx)
+		b = b.Bucket(i.BucketName())
+
+		if b == nil && size == 0 {
+			return nil
 		}
+
 		assert.Equal(t, size, b.Stats().KeyN)
 		return nil
 	})

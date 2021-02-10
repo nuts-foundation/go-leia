@@ -70,19 +70,19 @@ func (c *collection) AddIndex(index Index) error {
 	}
 
 	if err := c.db.Update(func(tx *bbolt.Tx) error {
-		// skip existing
-		if bucket := tx.Bucket([]byte(index.BucketName())); bucket != nil {
-			return nil
-		}
-
 		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
 		if err != nil {
 			return err
 		}
 
+		// skip existing
+		if b := bucket.Bucket(index.BucketName()); b != nil {
+			return nil
+		}
+
 		cur := bucket.Cursor()
 		for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-			index.Add(tx, ref, doc)
+			index.Add(bucket, ref, doc)
 		}
 
 		return nil
@@ -97,11 +97,16 @@ func (c *collection) AddIndex(index Index) error {
 
 func (c *collection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(c.Name))
+		if bucket == nil {
+			return nil
+		}
+
 		var newIndices = make([]Index, len(c.IndexList))
 		j := 0
 		for _, i := range c.IndexList {
 			if name == i.Name() {
-				tx.DeleteBucket([]byte(i.BucketName()))
+				bucket.DeleteBucket(i.BucketName())
 			} else {
 				newIndices[j] = i
 				j++
@@ -139,7 +144,7 @@ func (c *collection) Add(jsonSet []Document) error {
 			// indices
 			// buckets are cached within tx
 			for _, i := range c.IndexList {
-				err = i.Add(tx, ref, doc)
+				err = i.Add(bucket, ref, doc)
 				if err != nil {
 					return err
 				}
@@ -160,12 +165,16 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	}
 
 	err := c.db.View(func(tx *bbolt.Tx) error {
-		refs, err := i.Find(tx, query)
+		bucket := tx.Bucket([]byte(c.Name))
+		if bucket == nil {
+			return nil
+		}
+
+		refs, err := i.Find(bucket, query)
 		if err != nil {
 			return err
 		}
 
-		bucket := tx.Bucket([]byte(c.Name))
 		docs = make([]Document, len(refs))
 		for i, r := range refs {
 			docs[i] = bucket.Get(r)
@@ -181,6 +190,9 @@ func (c *collection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(c.Name))
+		if bucket == nil {
+			return nil
+		}
 
 		ref, err := c.refMake(doc)
 		if err != nil {
@@ -193,7 +205,7 @@ func (c *collection) Delete(doc Document) error {
 
 		// indices
 		for _, i := range c.IndexList {
-			err = i.Delete(tx, ref, doc)
+			err = i.Delete(bucket, ref, doc)
 			if err != nil {
 				return err
 			}
