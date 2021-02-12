@@ -61,7 +61,6 @@ type collection struct {
 	refMake   ReferenceFunc
 }
 
-// todo check duplicates better
 func (c *collection) AddIndex(index Index) error {
 	for _, i := range c.IndexList {
 		if i.Name() == index.Name() {
@@ -97,9 +96,9 @@ func (c *collection) AddIndex(index Index) error {
 
 func (c *collection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(c.Name))
-		if bucket == nil {
-			return nil
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		if err != nil {
+			return err
 		}
 
 		var newIndices = make([]Index, len(c.IndexList))
@@ -165,10 +164,8 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	}
 
 	err := c.db.View(func(tx *bbolt.Tx) error {
+		// nil is not possible since adding an index creates the bucket
 		bucket := tx.Bucket([]byte(c.Name))
-		if bucket == nil {
-			return nil
-		}
 
 		refs, err := i.Find(bucket, query)
 		if err != nil {

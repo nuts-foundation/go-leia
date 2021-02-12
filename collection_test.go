@@ -20,6 +20,8 @@
 package leia
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -43,6 +45,7 @@ func TestCollection_AddIndex(t *testing.T) {
 
 	t.Run("ok - duplicate", func(t *testing.T) {
 		c := createCollection(db)
+		c.AddIndex(i)
 		err := c.AddIndex(i)
 
 		if !assert.NoError(t, err) {
@@ -92,10 +95,31 @@ func TestCollection_DropIndex(t *testing.T) {
 
 		assertIndexSize(t, db, i, 0)
 	})
+
+	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
+		doc := Document(json)
+		i2 := NewIndex("other",
+			jsonIndexPart{name: "key", jsonPath: "path.part"},
+		)
+		c := createCollection(db)
+		c.Add([]Document{doc})
+		c.AddIndex(i)
+		c.AddIndex(i2)
+
+		if !assert.NoError(t, c.DropIndex(i.Name())) {
+			return
+		}
+
+		assertIndexSize(t, db, i2, 1)
+	})
 }
 
 func TestCollection_Add(t *testing.T) {
 	db := testDB(t)
+
+	errorRef := func(doc Document) (Reference, error) {
+		return nil, errors.New("b00m!")
+	}
 
 	t.Run("ok", func(t *testing.T) {
 		doc := Document(json)
@@ -107,13 +131,27 @@ func TestCollection_Add(t *testing.T) {
 
 		assertSize(t, db, c.Name, 1)
 	})
+
+	t.Run("error - refmake fails", func(t *testing.T) {
+		doc := Document(json)
+		c := createCollection(db)
+		c.refMake = errorRef
+
+		err := c.Add([]Document{doc})
+
+		assert.Error(t, err)
+	})
 }
 
 func TestCollection_Delete(t *testing.T) {
-	db := testDB(t)
 	i := testIndex(t)
 
+	errorRef := func(doc Document) (Reference, error) {
+		return nil, errors.New("b00m!")
+	}
+
 	t.Run("ok", func(t *testing.T) {
+		db := testDB(t)
 		doc := Document(json)
 		c := createCollection(db)
 		c.AddIndex(i)
@@ -127,6 +165,31 @@ func TestCollection_Delete(t *testing.T) {
 		assertIndexSize(t, db, i, 0)
 		// the index sub-bucket counts as 1
 		assertSize(t, db, c.Name, 1)
+	})
+
+	t.Run("ok - not added", func(t *testing.T) {
+		db := testDB(t)
+		doc := Document(json)
+		c := createCollection(db)
+
+		err := c.Delete(doc)
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assertSize(t, db, c.Name, 0)
+	})
+
+	t.Run("error - refMake returns error", func(t *testing.T) {
+		db := testDB(t)
+		doc := Document(json)
+		c := createCollection(db)
+		c.Add([]Document{doc})
+
+		c.refMake = errorRef
+		err := c.Delete(doc)
+
+		assert.Error(t, err)
 	})
 }
 
@@ -148,6 +211,21 @@ func TestCollection_Find(t *testing.T) {
 		}
 
 		assert.Len(t, docs, 1)
+	})
+
+	t.Run("ok - no docs", func(t *testing.T) {
+		db := testDB(t)
+		c := createCollection(db)
+		c.AddIndex(i)
+		q := New(Eq("key","value"))
+
+		docs, err := c.Find(q)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, docs, 0)
 	})
 
 	t.Run("error - incorrect query", func(t *testing.T) {
@@ -186,6 +264,37 @@ func TestCollection_Reference(t *testing.T) {
 		}
 
 		assert.Equal(t, "e7b9d2c3f90ae1f37b5e1ebbc8092e700fa1483c14643da8f4cd05de2c15c67d", ref.EncodeToString())
+	})
+}
+
+func TestCollection_Get(t *testing.T) {
+	db := testDB(t)
+
+	t.Run("ok", func(t *testing.T) {
+		doc := Document(json)
+		c := createCollection(db)
+		ref, _ := defaultReferenceCreator(doc)
+		c.Add([]Document{doc})
+
+		d, err := c.Get(ref)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.True(t, bytes.Compare(doc, d) == 0)
+	})
+
+	t.Run("error - not found", func(t *testing.T) {
+		c := createCollection(db)
+
+		d, err := c.Get([]byte("test"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Nil(t, d)
 	})
 }
 
