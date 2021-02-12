@@ -19,209 +19,51 @@
 
 package leia
 
-//
-//func TestNewStore(t *testing.T) {
-//	i := NewIndex("index", "path")
-//	dir := testDirectory(t)
-//
-//	s, err := NewStore(dir, i)
-//
-//	if !assert.NoError(t, err) {
-//		return
-//	}
-//
-//	assert.NotNil(t, s)
-//}
-//
-//var json = []byte(`
-//{
-//	"key": "value",
-//	"other": "some other value"
-//}
-//`)
-//
-//var json2 = []byte(`
-//{
-//	"key": "value2"
-//}
-//`)
-//
-//var json3 = []byte(`
-//{
-//	"key": "value",
-//	"other": "also a value"
-//}
-//`)
-//
-//func TestStore_Add(t *testing.T) {
-//	t.Run("ok - single doc in i ndex", func(t *testing.T) {
-//		dir := testDirectory(t)
-//		s, _ := NewStore(dir)
-//
-//		err := s.Add([]Document{json})
-//
-//		assert.NoError(t, err)
-//	})
-//
-//	t.Run("ok - multi doc in index", func(t *testing.T) {
-//		dir := testDirectory(t)
-//		s, _ := NewStore(dir)
-//
-//		err := s.Add([]Document{json, json3})
-//
-//		assert.NoError(t, err)
-//	})
-//
-//	t.Run("error - invalid json when index is used", func(t *testing.T) {
-//		dir := testDirectory(t)
-//		s, _ := NewStore(dir, NewIndex("index", "key"))
-//
-//		err := s.Add([]Document{[]byte("{")})
-//
-//		assert.Error(t, err)
-//	})
-//}
-//
-//func TestStore_Get(t *testing.T) {
-//	dir := testDirectory(t)
-//	s, _ := NewStore(dir)
-//	s.Add([]Document{json})
-//	ref := NewReference(json)
-//
-//	t.Run("ok", func(t *testing.T) {
-//		d, err := s.Get(ref)
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Equal(t, json, d)
-//	})
-//
-//	t.Run("not found", func(t *testing.T) {
-//		d, err := s.Get(NewReference([]byte("unknown")))
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Nil(t, d)
-//	})
-//}
-//
-//func TestStore_Find(t *testing.T) {
-//	i := NewIndex("index", "key")
-//	dir := testDirectory(t)
-//	s, _ := NewStore(dir, i)
-//	s.Add([]Document{json, json2, json3})
-//
-//	t.Run("ok - single result", func(t *testing.T) {
-//		d, err := s.Find(StringSearchOption{
-//			index: "index",
-//			value: "value2",
-//		})
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Len(t, d, 1)
-//		assert.Equal(t, json2, []byte(d[0]))
-//	})
-//
-//	t.Run("ok - multi result", func(t *testing.T) {
-//		d, err := s.Find(StringSearchOption{
-//			index: "index",
-//			value: "value",
-//		})
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Len(t, d, 2)
-//	})
-//
-//	t.Run("not found", func(t *testing.T) {
-//		d, err := s.Find(StringSearchOption{
-//			index: "index",
-//			value: "unknown",
-//		})
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Len(t, d, 0)
-//	})
-//}
-//
-//func TestStore_Delete(t *testing.T) {
-//	i := NewIndex("index", "key")
-//	dir := testDirectory(t)
-//	s, _ := NewStore(dir, i)
-//	s.Add([]Document{json, json2, json3})
-//	ref := NewReference(json2)
-//
-//	t.Run("ok", func(t *testing.T) {
-//		err := s.Delete(json2)
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		d, _ := s.Get(ref)
-//
-//		assert.Nil(t, d)
-//	})
-//
-//	t.Run("ok - non-existing", func(t *testing.T) {
-//		err := s.Delete([]byte("{}"))
-//
-//		assert.NoError(t, err)
-//	})
-//
-//	t.Run("ok - part of multiple", func(t *testing.T) {
-//		err := s.Delete(json)
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		d, err := s.Find(StringSearchOption{
-//			index: "index",
-//			value: "value",
-//		})
-//
-//		if !assert.NoError(t, err) {
-//			return
-//		}
-//
-//		assert.Len(t, d, 1)
-//	})
-//
-//	t.Run("error - invalid json when index is used", func(t *testing.T) {
-//		err := s.Delete([]byte("{"))
-//
-//		assert.Error(t, err)
-//	})
-//}
-//
-//func testDirectory(t *testing.T) string {
-//	if dir, err := ioutil.TempDir("", normalizeTestName(t)); err != nil {
-//		t.Fatal(err)
-//		return ""
-//	} else {
-//		t.Cleanup(func() {
-//			if err := os.RemoveAll(dir); err != nil {
-//				_, _ = os.Stderr.WriteString(fmt.Sprintf("Unable to remove temporary directory for test (%s): %v\n", dir, err))
-//			}
-//		})
-//		return dir
-//	}
-//}
-//
-//func normalizeTestName(t *testing.T) string {
-//	var invalidPathCharRegex = regexp.MustCompile("([^a-zA-Z0-9])")
-//	return invalidPathCharRegex.ReplaceAllString(t.Name(), "_")
-//}
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestNewStore(t *testing.T) {
+	t.Run("ok", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, err := NewStore(f)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.NotNil(t, s)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		_, err := NewStore("store_test.go")
+
+		assert.Error(t, err)
+	})
+}
+
+func TestStore_Collection(t *testing.T) {
+	f := filepath.Join(testDirectory(t), "test.db")
+	s, _ := NewStore(f)
+
+	c := s.Collection("test")
+
+	if !assert.NotNil(t, c) {
+		return
+	}
+
+	t.Run("db is set", func(t *testing.T) {
+		assert.NotNil(t, c.(*collection).db)
+	})
+
+	t.Run("refMake is set", func(t *testing.T) {
+		assert.NotNil(t, c.(*collection).refMake)
+	})
+
+	t.Run("name is set", func(t *testing.T) {
+		assert.NotNil(t, c.(*collection).Name)
+	})
+}
