@@ -271,62 +271,62 @@ func TestIndex_Find(t *testing.T) {
 	t.Run("ok - not found", func(t *testing.T) {
 		q := New(Eq("key", "not_found"))
 
-		var refs []Reference
+		var sr searchResult
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
+			sr, err = i.Find(b, q)
 			return err
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 0)
+		assert.Len(t, sr, 0)
 	})
 
 	t.Run("ok - exact match", func(t *testing.T) {
 		q := New(Eq("key", "value")).And(Eq("key2", "value2")).And(Eq("key3", 1.0))
 
-		var refs []Reference
+		var sr searchResult
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
+			sr, err = i.Find(b, q)
 			return err
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 1)
+		assert.Len(t, sr, 1)
 	})
 
 	t.Run("ok - partial match", func(t *testing.T) {
 		q := New(Eq("key", "value"))
 
-		var refs []Reference
+		var sr searchResult
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
+			sr, err = i.Find(b, q)
 			return err
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 2)
+		assert.Len(t, sr, 3)
 	})
 
 	t.Run("ok - nothing indexed", func(t *testing.T) {
 		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
 		q := New(Eq("key", "value"))
 
-		var refs []Reference
+		var sr searchResult
 		var err error
 		db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
+			sr, err = i.Find(b, q)
 			return err
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 0)
+		assert.Len(t, sr, 0)
 	})
 
 	t.Run("error - wrong query", func(t *testing.T) {

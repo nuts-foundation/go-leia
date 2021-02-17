@@ -21,6 +21,7 @@ package leia
 
 import (
 	"bytes"
+	"encoding/hex"
 	"errors"
 
 	"go.etcd.io/bbolt"
@@ -44,7 +45,7 @@ type Index interface {
 	IsMatch(query Query) float64
 
 	// Find the references matching the query
-	Find(bucket *bbolt.Bucket, query Query) ([]Reference, error)
+	Find(bucket *bbolt.Bucket, query Query) (searchResult, error)
 
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
@@ -245,12 +246,12 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 }
 
 // Find documents given a search option.
-func (i *index) Find(bucket *bbolt.Bucket, query Query) ([]Reference, error) {
+func (i *index) Find(bucket *bbolt.Bucket, query Query) (searchResult, error) {
 	var err error
 
 	cBucket := bucket.Bucket(i.BucketName())
 	if cBucket == nil {
-		return []Reference{}, err
+		return searchResult{}, err
 	}
 
 	// sort the parts of the Query to conform to the index key building order
@@ -264,16 +265,14 @@ func (i *index) Find(bucket *bbolt.Bucket, query Query) ([]Reference, error) {
 	return findR(c, Key{}, sortedQueryParts)
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, error) {
+func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) (searchResult, error) {
 	cPart := parts[0]
 	seek, err := cPart.Seek()
 	if err != nil {
 		return nil, err
 	}
 
-	// to prevent duplicates
-	refMap := map[string]bool{}
-	var newRef = make([]Reference, 0)
+	sResult := searchResult{}
 
 	seek = ComposeKey(sKey, seek)
 	condition := true
@@ -291,22 +290,18 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 			return nil, err
 		}
 		if condition {
-			var refs []Reference
 			if len(parts) > 1 {
+				var sr searchResult
 				nKey := ComposeKey(sKey, newp)
-				refs, err = findR(cursor, nKey, parts[1:])
-
+				sr, err = findR(cursor, nKey, parts[1:])
+				sResult.addAll(sr)
 			} else {
+				var refs []Reference
 				refs, err = entryToSlice(entry)
+				sResult.Add(cKey, refs)
 			}
 			if err != nil {
 				return nil, err
-			}
-			for _, r := range refs {
-				if _, b := refMap[r.EncodeToString()];!b {
-					refMap[r.EncodeToString()] = true
-					newRef = append(newRef, r)
-				}
 			}
 		} else {
 			eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
@@ -314,7 +309,57 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 		}
 	}
 
-	return newRef, nil
+	return sResult, nil
+}
+
+// searchResult maps search keys to a set of references
+type searchResult map[string]map[string]bool
+
+func (sr searchResult) Add(key Key, refs []Reference) {
+	var refSet map[string]bool
+
+	if m, exists := sr[key.EncodeToHex()]; !exists {
+		refSet = map[string]bool{}
+		sr[key.EncodeToHex()] = refSet
+	} else {
+		refSet = m
+	}
+
+	for _, r := range refs {
+		refSet[r.EncodeToString()] = true
+	}
+}
+
+func (sr searchResult) addAll(other searchResult) error {
+	return other.iterate(func(k Key, ref Reference) error {
+		sr.Add(k, []Reference{ref})
+		return nil
+	})
+}
+
+type resultIterator func(key Key, ref Reference) error
+
+func (sr searchResult) iterate(iterator resultIterator) error {
+	for k, s := range sr {
+		key, err := hex.DecodeString(k)
+		if err != nil {
+			return err
+		}
+
+		for r, _ := range s {
+			ref, err := hex.DecodeString(r)
+			if err != nil {
+				return err
+			}
+
+			err = iterator(key, ref)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }
 
 func entryToSlice(eBytes []byte) ([]Reference, error) {

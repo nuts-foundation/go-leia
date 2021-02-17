@@ -30,7 +30,6 @@ import (
 
 const boltDBFileMode = 0600
 const KeyDelimiter = 0x10
-const collectionBucket = "_leia"
 
 
 // Document represents a JSON document in []byte format
@@ -50,9 +49,20 @@ func (d Document) Reference() Reference {
 // Key is used as DB key type
 type Key []byte
 
+// KeyValue is used when searching
+type KeyValue struct {
+	Key Key
+	Value []byte
+}
+
 // String returns the string representation, only useful if a Key represents readable bytes
 func (k Key) String() string {
 	return string(k)
+}
+
+// EncodeToHex encodes the reference as hex encoded string
+func (k Key) EncodeToHex() string {
+	return hex.EncodeToString(k)
 }
 
 // todo: determine delimiter byte: data link escape character: 0x10
