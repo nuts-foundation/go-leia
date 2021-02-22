@@ -21,7 +21,6 @@ package leia
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 
 	"go.etcd.io/bbolt"
@@ -36,8 +35,8 @@ type Collection interface {
 	Get(ref Reference) (Document, error)
 	Delete(doc Document) error
 
-	// Find queries the collection for documents, it may return duplicates
-	Find(query Query) (SearchResult, error)
+	// Find queries the collection for documents
+	Find(query Query) ([]Document, error)
 
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
@@ -155,39 +154,8 @@ func (c *collection) Add(jsonSet []Document) error {
 	})
 }
 
-// SearchResult maps search keys to a set of documents
-type SearchResult map[string][]Document
-
-type ResultIterator func(key Key, doc Document) error
-
-func (sr SearchResult) Iterate(iterator ResultIterator) error {
-	for k, s := range sr {
-		key, err := hex.DecodeString(k)
-		if err != nil {
-			return err
-		}
-
-		for _, d := range s {
-			err = iterator(key, d)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func (sr SearchResult) Add(key Key, doc Document) {
-	if m, exists := sr[key.EncodeToHex()]; !exists {
-		sr[key.EncodeToHex()] = []Document{doc}
-	} else {
-		sr[key.EncodeToHex()] = append(m, doc)
-	}
-}
-
-func (c *collection) Find(query Query) (SearchResult, error) {
-	sResult := SearchResult{}
+func (c *collection) Find(query Query) ([]Document, error) {
+	var docs []Document
 
 	i := c.findIndex(query)
 
@@ -199,24 +167,19 @@ func (c *collection) Find(query Query) (SearchResult, error) {
 		// nil is not possible since adding an index creates the bucket
 		bucket := tx.Bucket([]byte(c.Name))
 
-		sr, err := i.Find(bucket, query)
+		refs, err := i.Find(bucket, query)
 		if err != nil {
 			return err
 		}
 
-		err = sr.iterate(func(key Key, ref Reference) error {
-			doc := bucket.Get(ref)
-			if doc == nil {
-				return errors.New("no document found for key")
-			}
-			sResult.Add(key, doc)
-
-			return nil
-		})
-		return err
+		docs = make([]Document, len(refs))
+		for i, r := range refs {
+			docs[i] = bucket.Get(r)
+		}
+		return nil
 	})
 
-	return sResult, err
+	return docs, err
 }
 
 // Delete a document from the store, this also removes the entries from indices
