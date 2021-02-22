@@ -20,6 +20,9 @@
 package leia
 
 import (
+	"os"
+	"path/filepath"
+
 	"go.etcd.io/bbolt"
 )
 
@@ -38,6 +41,11 @@ type store struct {
 
 // NewStore creates a new store.
 func NewStore(dbFile string) (Store, error) {
+	err := os.MkdirAll(filepath.Dir(dbFile), os.ModePerm)
+	if err != nil {
+		return nil, err
+	}
+
 	db, err := bbolt.Open(dbFile, boltDBFileMode, bbolt.DefaultOptions)
 	if err != nil {
 		return nil, err

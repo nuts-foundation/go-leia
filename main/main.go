@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/nuts-foundation/leija"
+	"github.com/nuts-foundation/go-leia"
 )
 
 func main() {
