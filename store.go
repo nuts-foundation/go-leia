@@ -33,10 +33,11 @@ type Store interface {
 	Collection(name string) Collection
 }
 
-// Store holds a reference to the bbolt data file and holds configured indices.
+// Store holds a reference to the bbolt data file and holds configured indices per collection.
 type store struct {
 	db      *bbolt.DB
 	indices []Index
+	collections map[string]*collection
 }
 
 // NewStore creates a new store.
@@ -51,17 +52,19 @@ func NewStore(dbFile string) (Store, error) {
 		return nil, err
 	}
 
-	return &store{db: db}, nil
+	return &store{db: db, collections: map[string]*collection{}}, nil
 }
 
 func (s *store) Collection(name string) Collection {
-	// a collection is stored in the _leia bucket
-	// the name is the key, the value is the collection struct as json
-	var c = collection {
-		Name:    name,
-		db: s.db,
-		refMake: defaultReferenceCreator,
+	c, ok := s.collections[name]
+	if !ok {
+		c = &collection {
+			Name:    name,
+			db: s.db,
+			refMake: defaultReferenceCreator,
+		}
+		s.collections[name] = c
 	}
 
-	return &c
+	return c
 }
