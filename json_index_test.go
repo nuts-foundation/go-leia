@@ -44,6 +44,20 @@ func TestIndex_Add(t *testing.T) {
 		assertIndexed(t, db, i, []byte("value"), ref)
 	})
 
+	t.Run("ok - values added as key to document reference", func(t *testing.T) {
+		i := NewIndex(t.Name(),
+			jsonIndexPart{name: "key", jsonPath: "path.parts"},
+			jsonIndexPart{name: "key2", jsonPath: "path.part"},
+		)
+
+		db.Update(func(tx *bbolt.Tx) error {
+			return i.Add(testBucket(t, tx), ref, doc)
+		})
+
+		assertIndexed(t, db, i, ComposeKey(Key("value1"), Key("value")), ref)
+		assertIndexed(t, db, i, ComposeKey(Key("value3"), Key("value")), ref)
+	})
+
 	t.Run("ok - value added as key using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
 			jsonIndexPart{name: "key", jsonPath: "path.part"},

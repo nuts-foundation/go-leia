@@ -66,4 +66,13 @@ func TestStore_Collection(t *testing.T) {
 	t.Run("name is set", func(t *testing.T) {
 		assert.NotNil(t, c.(*collection).Name)
 	})
+
+	t.Run("collections are stored in instance", func(t *testing.T) {
+		c2 := s.Collection("test").(*collection)
+
+		assert.Len(t, c2.IndexList, 0)
+		c.AddIndex(NewIndex("test", NewJSONIndexPart("test", "path")))
+
+		assert.Len(t, c2.IndexList, 1)
+	})
 }

@@ -37,7 +37,7 @@ var json = `
 {
 	"path": {
 		"part": "value",
-		"parts": ["value1"],
+		"parts": ["value1", "value3"],
 		"more": [
 			{
 				"parts": 0.0
