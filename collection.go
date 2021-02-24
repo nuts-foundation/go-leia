@@ -224,6 +224,7 @@ func (c *collection) findIndex(query Query) Index {
 		m := i.IsMatch(query)
 		if m > cMatch {
 			cIndex = i
+			cMatch = m
 		}
 	}
 
