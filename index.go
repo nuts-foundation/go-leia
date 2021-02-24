@@ -108,7 +108,9 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Referen
 	// continue recursion
 	for _, m := range matches {
 		nKey := ComposeKey(cKey, m)
-		return addDocumentR(bucket, parts[1:], nKey, ref, doc)
+		if err = addDocumentR(bucket, parts[1:], nKey, ref, doc); err != nil {
+			return err
+		}
 	}
 
 	// no matches for the document and this part of the index
