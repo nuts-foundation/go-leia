@@ -30,7 +30,7 @@ import (
 
 
 func TestIndex_Add(t *testing.T) {
-	doc := Document(json)
+	doc := Document(jsonExample)
 	ref, _ := defaultReferenceCreator(doc)
 	db := testDB(t)
 
@@ -61,7 +61,7 @@ func TestIndex_Add(t *testing.T) {
 	t.Run("ok - value added as key using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
 			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key2", jsonPath: "path.more.parts"},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -77,9 +77,9 @@ func TestIndex_Add(t *testing.T) {
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := NewIndex(t.Name(),
 			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key2", jsonPath: "path.more.parts"},
 		)
-		doc2 := Document(json2)
+		doc2 := Document(jsonExample2)
 		ref2, _ := defaultReferenceCreator(doc2)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -122,7 +122,7 @@ func TestIndex_Add(t *testing.T) {
 }
 
 func TestIndex_Delete(t *testing.T) {
-	doc := Document(json)
+	doc := Document(jsonExample)
 	ref, _ := defaultReferenceCreator(doc)
 	db := testDB(t)
 
@@ -198,7 +198,7 @@ func TestIndex_Delete(t *testing.T) {
 			jsonIndexPart{name: "key", jsonPath: "path.part"},
 			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
 		)
-		doc2 := Document(json2)
+		doc2 := Document(jsonExample2)
 		ref2, _ := defaultReferenceCreator(doc2)
 
 		err := db.Update(func(tx *bbolt.Tx) error {
@@ -264,9 +264,9 @@ func TestIndex_IsMatch(t *testing.T) {
 }
 
 func TestIndex_Find(t *testing.T) {
-	doc := Document(json)
+	doc := Document(jsonExample)
 	ref, _ := defaultReferenceCreator(doc)
-	doc2 := Document(json2)
+	doc2 := Document(jsonExample2)
 	ref2, _ := defaultReferenceCreator(doc2)
 	db := testDB(t)
 

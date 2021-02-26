@@ -20,9 +20,10 @@
 package leia
 
 import (
+	"encoding/json"
 	"strings"
 
-	"github.com/thedevsaddam/gojsonq/v2"
+	errors2 "github.com/pkg/errors"
 )
 
 
@@ -47,13 +48,12 @@ func (j jsonIndexPart) Name() string {
 }
 
 func (j jsonIndexPart) Keys(document Document) ([]Key, error) {
-	jsonq := gojsonq.New().FromString(document.String())
-
-	if err := jsonq.Error(); err != nil {
-		return nil, err
+	var val = make(map[string]interface{})
+	if err := json.Unmarshal(document, &val); err != nil {
+		return nil, errors2.Wrap(err, "unable to parse document")
 	}
 
-	matches := j.matchR(j.pathParts(), jsonq)
+	matches := j.matchRecursive(j.pathParts(), val)
 	keys := make([]Key, len(matches))
 	for i, m := range matches {
 		b, err := toBytes(m)
@@ -66,23 +66,12 @@ func (j jsonIndexPart) Keys(document Document) ([]Key, error) {
 	return keys, nil
 }
 
-func (j jsonIndexPart) matchR(parts []string, jsonq *gojsonq.JSONQ) []interface{} {
-	jsonq = jsonq.From(parts[0])
-	val := jsonq.Get()
-
-	if val == nil {
-		return []interface{}{}
-	}
+func (j jsonIndexPart) matchRecursive(parts []string, val interface{}) []interface{} {
 
 	if a, ok := val.([]interface{}); ok {
-		if len(parts) == 1 {
-			return a
-		}
-
 		var ra []interface{}
 		for _, ai := range a {
-			gjs := gojsonq.New().FromInterface(ai)
-			interm := j.matchR(parts[1:], gjs)
+			interm := j.matchRecursive(parts, ai)
 			ra = append(ra, interm...)
 		}
 
@@ -90,8 +79,14 @@ func (j jsonIndexPart) matchR(parts []string, jsonq *gojsonq.JSONQ) []interface{
 	}
 
 	if m, ok := val.(map[string]interface{}); ok {
-		gjs := gojsonq.New().FromInterface(m)
-		return j.matchR(parts[1:], gjs)
+		if len(parts) == 0 {
+			return []interface{}{}
+		}
+		if v, ok2 := m[parts[0]]; ok2 {
+			return j.matchRecursive(parts[1:], v)
+		}
+		// no match
+		return []interface{}{}
 	}
 
 	return []interface{}{val}

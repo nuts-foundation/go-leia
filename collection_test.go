@@ -28,6 +28,8 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+var exampleDoc = Document(jsonExample)
+
 func TestCollection_AddIndex(t *testing.T) {
 	db := testDB(t)
 	i := testIndex(t)
@@ -56,19 +58,17 @@ func TestCollection_AddIndex(t *testing.T) {
 	})
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 		c.AddIndex(i)
 
 		assertIndexSize(t, db, i, 1)
 	})
 
 	t.Run("ok - adding existing index does nothing", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
 		c.AddIndex(i)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 
 		assertIndexSize(t, db, i, 1)
 
@@ -84,9 +84,8 @@ func TestCollection_DropIndex(t *testing.T) {
 	i := testIndex(t)
 
 	t.Run("ok - dropping index removes refs", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 		c.AddIndex(i)
 
 		if !assert.NoError(t, c.DropIndex(i.Name())) {
@@ -97,12 +96,11 @@ func TestCollection_DropIndex(t *testing.T) {
 	})
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
-		doc := Document(json)
 		i2 := NewIndex("other",
 			jsonIndexPart{name: "key", jsonPath: "path.part"},
 		)
 		c := createCollection(db)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 		c.AddIndex(i)
 		c.AddIndex(i2)
 
@@ -122,9 +120,8 @@ func TestCollection_Add(t *testing.T) {
 	}
 
 	t.Run("ok", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
-		err := c.Add([]Document{doc})
+		err := c.Add([]Document{exampleDoc})
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -133,11 +130,10 @@ func TestCollection_Add(t *testing.T) {
 	})
 
 	t.Run("error - refmake fails", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
 		c.refMake = errorRef
 
-		err := c.Add([]Document{doc})
+		err := c.Add([]Document{exampleDoc})
 
 		assert.Error(t, err)
 	})
@@ -152,12 +148,11 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		db := testDB(t)
-		doc := Document(json)
 		c := createCollection(db)
 		c.AddIndex(i)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 
-		err := c.Delete(doc)
+		err := c.Delete(exampleDoc)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -169,7 +164,7 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("ok - not added", func(t *testing.T) {
 		db := testDB(t)
-		doc := Document(json)
+		doc := Document(jsonExample)
 		c := createCollection(db)
 
 		err := c.Delete(doc)
@@ -182,7 +177,7 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("error - refMake returns error", func(t *testing.T) {
 		db := testDB(t)
-		doc := Document(json)
+		doc := Document(jsonExample)
 		c := createCollection(db)
 		c.Add([]Document{doc})
 
@@ -198,10 +193,9 @@ func TestCollection_Find(t *testing.T) {
 	i := testIndex(t)
 
 	t.Run("ok", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
 		c.AddIndex(i)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 		q := New(Eq("key","value"))
 
 		docs, err := c.Find(q)
@@ -229,10 +223,9 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("error - incorrect query", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
 		c.AddIndex(i)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 		q := New(Eq("key",struct{}{}))
 
 		_, err := c.Find(q)
@@ -255,9 +248,8 @@ func TestCollection_Reference(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		c := createCollection(db)
-		doc := Document(json)
 
-		ref, err := c.Reference(doc)
+		ref, err := c.Reference(exampleDoc)
 
 		if !assert.NoError(t, err) {
 			return
@@ -271,10 +263,9 @@ func TestCollection_Get(t *testing.T) {
 	db := testDB(t)
 
 	t.Run("ok", func(t *testing.T) {
-		doc := Document(json)
 		c := createCollection(db)
-		ref, _ := defaultReferenceCreator(doc)
-		c.Add([]Document{doc})
+		ref, _ := defaultReferenceCreator(exampleDoc)
+		c.Add([]Document{exampleDoc})
 
 		d, err := c.Get(ref)
 
@@ -282,7 +273,7 @@ func TestCollection_Get(t *testing.T) {
 			return
 		}
 
-		assert.True(t, bytes.Compare(doc, d) == 0)
+		assert.True(t, bytes.Compare(exampleDoc, d) == 0)
 	})
 
 	t.Run("error - not found", func(t *testing.T) {

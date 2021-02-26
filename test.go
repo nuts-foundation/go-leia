@@ -33,7 +33,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-var json = `
+var jsonExample = `
 {
 	"path": {
 		"part": "value",
@@ -47,7 +47,7 @@ var json = `
 }
 `
 
-var json2 = `
+var jsonExample2 = `
 {
 	"path": {
 		"part": "value",
