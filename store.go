@@ -67,6 +67,7 @@ func NewStore(dbFile string) (Store, error) {
 		db:      st.db,
 		refMake: defaultReferenceCreator,
 	}
+	st.globalCollection.globalCollection = st.globalCollection
 	return st, nil
 }
 
