@@ -79,7 +79,12 @@ func (c *collection) AddIndex(index Index) error {
 			return nil
 		}
 
-		cur := bucket.Cursor()
+		gBucket, err := tx.CreateBucketIfNotExists([]byte(GlobalCollection))
+		if err != nil {
+			return err
+		}
+
+		cur := gBucket.Cursor()
 		for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
 			index.Add(bucket, ref, doc)
 		}
@@ -124,7 +129,11 @@ func (c *collection) Reference(doc Document) (Reference, error) {
 // this uses a single transaction per set.
 func (c *collection) Add(jsonSet []Document) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		iBucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		if err != nil {
+			return err
+		}
+		gBucket, err := tx.CreateBucketIfNotExists([]byte(GlobalCollection))
 		if err != nil {
 			return err
 		}
@@ -135,7 +144,7 @@ func (c *collection) Add(jsonSet []Document) error {
 				return err
 			}
 
-			err = bucket.Put(ref, doc)
+			err = gBucket.Put(ref, doc)
 			if err != nil {
 				return err
 			}
@@ -143,7 +152,7 @@ func (c *collection) Add(jsonSet []Document) error {
 			// indices
 			// buckets are cached within tx
 			for _, i := range c.IndexList {
-				err = i.Add(bucket, ref, doc)
+				err = i.Add(iBucket, ref, doc)
 				if err != nil {
 					return err
 				}
@@ -164,17 +173,18 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	}
 
 	err := c.db.View(func(tx *bbolt.Tx) error {
-		// nil is not possible since adding an index creates the bucket
-		bucket := tx.Bucket([]byte(c.Name))
+		// nil is not possible since adding an index creates the iBucket
+		iBucket := tx.Bucket([]byte(c.Name))
+		gBucket := tx.Bucket([]byte(GlobalCollection))
 
-		refs, err := i.Find(bucket, query)
+		refs, err := i.Find(iBucket, query)
 		if err != nil {
 			return err
 		}
 
 		docs = make([]Document, len(refs))
 		for i, r := range refs {
-			docs[i] = bucket.Get(r)
+			docs[i] = gBucket.Get(r)
 		}
 		return nil
 	})
@@ -186,23 +196,24 @@ func (c *collection) Find(query Query) ([]Document, error) {
 func (c *collection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(c.Name))
-		if bucket == nil {
+		iBucket := tx.Bucket([]byte(c.Name))
+		if iBucket == nil {
 			return nil
 		}
+		gBucket := tx.Bucket([]byte(GlobalCollection))
 
 		ref, err := c.refMake(doc)
 		if err != nil {
 			return err
 		}
-		err = bucket.Delete(ref)
+		err = gBucket.Delete(ref)
 		if err != nil {
 			return err
 		}
 
 		// indices
 		for _, i := range c.IndexList {
-			err = i.Delete(bucket, ref, doc)
+			err = i.Delete(iBucket, ref, doc)
 			if err != nil {
 				return err
 			}
@@ -238,7 +249,7 @@ func (c *collection) Get(key Reference) (Document, error) {
 	var data []byte
 
 	err = c.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(c.Name))
+		bucket := tx.Bucket([]byte(GlobalCollection))
 
 		data = bucket.Get(key)
 		return nil

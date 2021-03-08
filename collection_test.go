@@ -126,7 +126,7 @@ func TestCollection_Add(t *testing.T) {
 			return
 		}
 
-		assertSize(t, db, c.Name, 1)
+		assertSize(t, db, GlobalCollection, 1)
 	})
 
 	t.Run("error - refmake fails", func(t *testing.T) {

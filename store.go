@@ -26,6 +26,10 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// GlobalCollection is the collection that stores all the documents
+// specific collection only store indices
+const GlobalCollection = "_global"
+
 // Store is the main interface for storing/finding documents
 type Store interface {
 	// Collection creates or returns a collection.
