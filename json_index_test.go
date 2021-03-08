@@ -28,7 +28,6 @@ import (
 
 // These tests are for index testing. It uses the json indexPart implementation
 
-
 func TestIndex_Add(t *testing.T) {
 	doc := Document(jsonExample)
 	ref, _ := defaultReferenceCreator(doc)

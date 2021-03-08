@@ -55,7 +55,7 @@ type Index interface {
 // This index is only useful if at least n-1 parts are used in the query.
 func NewIndex(name string, parts ...IndexPart) Index {
 	return &index{
-		name: name,
+		name:       name,
 		indexParts: parts,
 	}
 }
@@ -68,7 +68,7 @@ type IndexPart interface {
 }
 
 type index struct {
-	name string
+	name       string
 	indexParts []IndexPart
 }
 
@@ -211,7 +211,7 @@ func (i *index) IsMatch(query Query) float64 {
 		return 0.0
 	}
 
-	outer:
+outer:
 	for thc, ip := range i.indexParts {
 		for _, qp := range parts {
 			if ip.Name() == qp.Name() {
@@ -224,7 +224,7 @@ func (i *index) IsMatch(query Query) float64 {
 		}
 	}
 
-	return float64(hitcount)/float64(len(i.indexParts))
+	return float64(hitcount) / float64(len(i.indexParts))
 }
 
 func (i *index) sort(query Query) ([]QueryPart, error) {
@@ -305,7 +305,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 				return nil, err
 			}
 			for _, r := range refs {
-				if _, b := refMap[r.EncodeToString()];!b {
+				if _, b := refMap[r.EncodeToString()]; !b {
 					refMap[r.EncodeToString()] = true
 					newRef = append(newRef, r)
 				}

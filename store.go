@@ -39,9 +39,10 @@ type Store interface {
 
 // Store holds a reference to the bbolt data file and holds configured indices per collection.
 type store struct {
-	db      *bbolt.DB
-	indices []Index
-	collections map[string]*collection
+	db               *bbolt.DB
+	globalCollection *collection
+	indices          []Index
+	collections      map[string]*collection
 }
 
 // NewStore creates a new store.
@@ -56,16 +57,31 @@ func NewStore(dbFile string) (Store, error) {
 		return nil, err
 	}
 
-	return &store{db: db, collections: map[string]*collection{}}, nil
+	st := &store{
+		db:          db,
+		collections: map[string]*collection{},
+	}
+
+	st.globalCollection = &collection{
+		Name:    GlobalCollection,
+		db:      st.db,
+		refMake: defaultReferenceCreator,
+	}
+	return st, nil
 }
 
 func (s *store) Collection(name string) Collection {
+	if name == GlobalCollection {
+		return s.globalCollection
+	}
+
 	c, ok := s.collections[name]
 	if !ok {
-		c = &collection {
-			Name:    name,
-			db: s.db,
-			refMake: defaultReferenceCreator,
+		c = &collection{
+			Name:             name,
+			db:               s.db,
+			globalCollection: s.globalCollection,
+			refMake:          defaultReferenceCreator,
 		}
 		s.collections[name] = c
 	}

@@ -28,10 +28,10 @@ import (
 
 func main() {
 	var compoundIndex = leia.NewIndex("compound",
-		leia.NewJSONIndexPart("id","id"),
-		leia.NewJSONIndexPart("obj","obj.key"),
-		leia.NewJSONIndexPart("list","list.key"),
-		leia.NewJSONIndexPart("sublist","list.subList"),
+		leia.NewJSONIndexPart("id", "id"),
+		leia.NewJSONIndexPart("obj", "obj.key"),
+		leia.NewJSONIndexPart("list", "list.key"),
+		leia.NewJSONIndexPart("sublist", "list.subList"),
 	)
 
 	s, err := leia.NewStore("./test/documents.db")
@@ -66,10 +66,10 @@ func main() {
 	//
 	//fmt.Println("added docs")
 
-	query := leia.New(leia.Eq("id","ID16")).
-		And(leia.Eq("obj","OBJ.VAL16")).
-		And(leia.Eq("list","LIST.VAL16")).
-		And(leia.Eq("sublist","SUBLIST.VAL16"))
+	query := leia.New(leia.Eq("id", "ID16")).
+		And(leia.Eq("obj", "OBJ.VAL16")).
+		And(leia.Eq("list", "LIST.VAL16")).
+		And(leia.Eq("sublist", "SUBLIST.VAL16"))
 
 	t := time.Now()
 	j, err := c.Find(query)
@@ -78,10 +78,10 @@ func main() {
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
 
-	query2 := leia.New(leia.Range("id","ID16", "ID17")).
-		And(leia.Range("obj","OBJ.VAL16", "OBJ.VAL17")).
-		And(leia.Range("list","LIST.VAL16", "LIST.VAL17")).
-		And(leia.Range("sublist","SUBLIST.VAL16", "SUBLIST.VAL17"))
+	query2 := leia.New(leia.Range("id", "ID16", "ID17")).
+		And(leia.Range("obj", "OBJ.VAL16", "OBJ.VAL17")).
+		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
+		And(leia.Range("sublist", "SUBLIST.VAL16", "SUBLIST.VAL17"))
 
 	t = time.Now()
 	j, err = c.Find(query2)

@@ -75,4 +75,13 @@ func TestStore_Collection(t *testing.T) {
 
 		assert.Len(t, c2.IndexList, 1)
 	})
+
+	t.Run("global connection is returned", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, _ := NewStore(f)
+		c := s.Collection(GlobalCollection)
+
+		assert.NotNil(t, c)
+		assert.Len(t, s.(*store).collections, 0)
+	})
 }

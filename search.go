@@ -45,7 +45,7 @@ type QueryPart interface {
 
 // New creates a new query with an initial query part. Both begin and end are inclusive for the conditional check.
 func New(part QueryPart) Query {
-	return query {
+	return query{
 		parts: []QueryPart{part},
 	}
 }
@@ -61,9 +61,9 @@ func Eq(name string, value interface{}) QueryPart {
 // Range creates a query part for a range query
 func Range(name string, begin interface{}, end interface{}) QueryPart {
 	return rangePart{
-		name: name,
+		name:  name,
 		begin: begin,
-		end: end,
+		end:   end,
 	}
 }
 
@@ -81,7 +81,7 @@ func (q query) Parts() []QueryPart {
 }
 
 type eqPart struct {
-	name string
+	name  string
 	value interface{}
 }
 
@@ -102,9 +102,9 @@ func (e eqPart) Condition(key Key) (bool, error) {
 }
 
 type rangePart struct {
-	name string
+	name  string
 	begin interface{}
-	end interface{}
+	end   interface{}
 }
 
 func (r rangePart) Name() string {

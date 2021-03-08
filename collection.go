@@ -55,10 +55,11 @@ func defaultReferenceCreator(doc Document) (Reference, error) {
 }
 
 type collection struct {
-	Name      string   `json:"name"`
-	db        *bbolt.DB
-	IndexList []Index  `json:"indices"`
-	refMake   ReferenceFunc
+	Name             string `json:"name"`
+	db               *bbolt.DB
+	globalCollection *collection
+	IndexList        []Index `json:"indices"`
+	refMake          ReferenceFunc
 }
 
 func (c *collection) AddIndex(index Index) error {
@@ -129,38 +130,52 @@ func (c *collection) Reference(doc Document) (Reference, error) {
 // this uses a single transaction per set.
 func (c *collection) Add(jsonSet []Document) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		iBucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
-		if err != nil {
-			return err
-		}
-		gBucket, err := tx.CreateBucketIfNotExists([]byte(GlobalCollection))
-		if err != nil {
-			return err
-		}
-
-		for _, doc := range jsonSet {
-			ref, err := c.refMake(doc)
-			if err != nil {
-				return err
-			}
-
-			err = gBucket.Put(ref, doc)
-			if err != nil {
-				return err
-			}
-
-			// indices
-			// buckets are cached within tx
-			for _, i := range c.IndexList {
-				err = i.Add(iBucket, ref, doc)
-				if err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
+		return c.add(tx, jsonSet)
 	})
+}
+
+func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
+	bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+	if err != nil {
+		return err
+	}
+
+	for _, doc := range jsonSet {
+		ref, err := c.refMake(doc)
+		if err != nil {
+			return err
+		}
+
+		// indices
+		// buckets are cached within tx
+		for _, i := range c.IndexList {
+			err = i.Add(bucket, ref, doc)
+			if err != nil {
+				return err
+			}
+		}
+
+		if c.isGlobal() {
+			bucket.Put(ref, doc)
+		}
+	}
+
+	if c.isNotGlobal() {
+		err = c.globalCollection.add(tx, jsonSet)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *collection) isNotGlobal() bool {
+	return c != c.globalCollection && c.globalCollection != nil
+}
+
+func (c *collection) isGlobal() bool {
+	return c.Name == GlobalCollection
 }
 
 func (c *collection) Find(query Query) ([]Document, error) {
@@ -175,7 +190,6 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	err := c.db.View(func(tx *bbolt.Tx) error {
 		// nil is not possible since adding an index creates the iBucket
 		iBucket := tx.Bucket([]byte(c.Name))
-		gBucket := tx.Bucket([]byte(GlobalCollection))
 
 		refs, err := i.Find(iBucket, query)
 		if err != nil {
@@ -184,7 +198,10 @@ func (c *collection) Find(query Query) ([]Document, error) {
 
 		docs = make([]Document, len(refs))
 		for i, r := range refs {
-			docs[i] = gBucket.Get(r)
+			docs[i], err = c.globalCollection.Get(r)
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
@@ -196,31 +213,37 @@ func (c *collection) Find(query Query) ([]Document, error) {
 func (c *collection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		iBucket := tx.Bucket([]byte(c.Name))
-		if iBucket == nil {
-			return nil
-		}
-		gBucket := tx.Bucket([]byte(GlobalCollection))
-
-		ref, err := c.refMake(doc)
-		if err != nil {
-			return err
-		}
-		err = gBucket.Delete(ref)
-		if err != nil {
-			return err
-		}
-
-		// indices
-		for _, i := range c.IndexList {
-			err = i.Delete(iBucket, ref, doc)
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
+		return c.delete(tx, doc)
 	})
+}
+
+func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
+	iBucket := tx.Bucket([]byte(c.Name))
+	if iBucket == nil {
+		return nil
+	}
+
+	ref, err := c.refMake(doc)
+	if err != nil {
+		return err
+	}
+
+	if c.isNotGlobal() {
+		err = c.globalCollection.delete(tx, doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	// indices
+	for _, i := range c.IndexList {
+		err = i.Delete(iBucket, ref, doc)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // find a matching index.
@@ -241,7 +264,6 @@ func (c *collection) findIndex(query Query) Index {
 
 	return cIndex
 }
-
 
 // Get returns the data for the given key or nil if not found
 func (c *collection) Get(key Reference) (Document, error) {

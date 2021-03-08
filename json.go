@@ -26,17 +26,16 @@ import (
 	errors2 "github.com/pkg/errors"
 )
 
-
 func NewJSONIndexPart(name string, jsonPath string) IndexPart {
 	return jsonIndexPart{
-		name: name,
+		name:     name,
 		jsonPath: jsonPath,
 	}
 }
 
 type jsonIndexPart struct {
-	name      string
-	jsonPath  string
+	name     string
+	jsonPath string
 }
 
 func (j jsonIndexPart) pathParts() []string {

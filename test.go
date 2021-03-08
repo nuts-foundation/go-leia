@@ -105,7 +105,6 @@ func normalizeTestName(t *testing.T) string {
 	return invalidPathCharRegex.ReplaceAllString(t.Name(), "_")
 }
 
-
 // assertIndexed checks if a key/value has been indexed
 func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Reference) bool {
 	err := db.View(func(tx *bbolt.Tx) error {
@@ -137,8 +136,11 @@ func assertIndexSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
 		b := testBucket(t, tx)
 		b = b.Bucket(i.BucketName())
 
-		if b == nil && size == 0 {
-			return nil
+		if b == nil {
+			if size == 0 {
+				return nil
+			}
+			return errors.New("empty bucket")
 		}
 
 		assert.Equal(t, size, b.Stats().KeyN)

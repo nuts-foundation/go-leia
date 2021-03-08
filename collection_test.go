@@ -63,6 +63,7 @@ func TestCollection_AddIndex(t *testing.T) {
 		c.AddIndex(i)
 
 		assertIndexSize(t, db, i, 1)
+		assertSize(t, db, GlobalCollection, 1)
 	})
 
 	t.Run("ok - adding existing index does nothing", func(t *testing.T) {
@@ -196,7 +197,7 @@ func TestCollection_Find(t *testing.T) {
 		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{exampleDoc})
-		q := New(Eq("key","value"))
+		q := New(Eq("key", "value"))
 
 		docs, err := c.Find(q)
 
@@ -211,7 +212,7 @@ func TestCollection_Find(t *testing.T) {
 		db := testDB(t)
 		c := createCollection(db)
 		c.AddIndex(i)
-		q := New(Eq("key","value"))
+		q := New(Eq("key", "value"))
 
 		docs, err := c.Find(q)
 
@@ -226,7 +227,7 @@ func TestCollection_Find(t *testing.T) {
 		c := createCollection(db)
 		c.AddIndex(i)
 		c.Add([]Document{exampleDoc})
-		q := New(Eq("key",struct{}{}))
+		q := New(Eq("key", struct{}{}))
 
 		_, err := c.Find(q)
 
@@ -235,7 +236,7 @@ func TestCollection_Find(t *testing.T) {
 
 	t.Run("error - no index", func(t *testing.T) {
 		c := createCollection(db)
-		q := New(Eq("key","value"))
+		q := New(Eq("key", "value"))
 
 		_, err := c.Find(q)
 
@@ -296,10 +297,18 @@ func testIndex(t *testing.T) Index {
 }
 
 func createCollection(db *bbolt.DB) collection {
-	return collection {
-		Name:      "test",
+	gCollection := collection{
+		Name:      GlobalCollection,
 		db:        db,
 		IndexList: []Index{},
 		refMake:   defaultReferenceCreator,
+	}
+
+	return collection{
+		Name:             "test",
+		db:               db,
+		globalCollection: &gCollection,
+		IndexList:        []Index{},
+		refMake:          defaultReferenceCreator,
 	}
 }
