@@ -219,7 +219,7 @@ outer:
 			}
 		}
 		// if a miss is encountered, do not continue. You can't skip an index lvl
-		if hitcount <= thc {
+		if hitcount == thc {
 			break outer
 		}
 	}
@@ -243,7 +243,12 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 		}
 	}
 
-	return sorted[:hits], nil
+	if hits < len(query.Parts()) {
+		// this could have been a typo somewhere. If not caught it'll result in a lot of results when it shouldn't
+		return nil, errors.New("unknown query part")
+	}
+
+	return sorted, nil
 }
 
 // Find documents given a search option.
