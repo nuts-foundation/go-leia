@@ -244,7 +244,7 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 	}
 
 	if hits < len(query.Parts()) {
-		// this could have been a type somewhere. If not caught it'll result in a lot of results when it shouldn't
+		// this could have been a typo somewhere. If not caught it'll result in a lot of results when it shouldn't
 		return nil, errors.New("unknown query part")
 	}
 
