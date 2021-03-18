@@ -67,6 +67,15 @@ func Range(name string, begin interface{}, end interface{}) QueryPart {
 	}
 }
 
+// Prefix creates a query part for a partial match
+// The beginning of a value is matched against the query.
+func Prefix(name string, value interface{}) QueryPart {
+	return prefixPart{
+		name:  name,
+		value: value,
+	}
+}
+
 type query struct {
 	parts []QueryPart
 }
@@ -122,3 +131,32 @@ func (r rangePart) Condition(key Key) (bool, error) {
 	}
 	return bytes.Compare(key, b) <= 0, nil
 }
+
+type prefixPart struct {
+	name  string
+	value interface{}
+}
+
+func (p prefixPart) Name() string {
+	return p.name
+}
+
+func (p prefixPart) Seek() (Key, error) {
+	return toBytes(p.value)
+}
+
+func (p prefixPart) Condition(key Key) (bool, error) {
+	prefix, err := toBytes(p.value)
+	if err != nil {
+		return false, err
+	}
+
+	if len(prefix) > len(key) {
+		return false, nil
+	}
+
+	search := []byte(key[:len(prefix)])
+
+	return bytes.Compare(search, prefix) == 0, nil
+}
+

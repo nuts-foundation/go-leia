@@ -154,3 +154,59 @@ func TestRange(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestPrefix(t *testing.T) {
+	qp := Prefix("test", "test")
+
+	t.Run("ok - name", func(t *testing.T) {
+		assert.Equal(t, "test", qp.Name())
+	})
+
+	t.Run("ok - seek", func(t *testing.T) {
+		s, err := qp.Seek()
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Equal(t, "test", s.String())
+	})
+
+	t.Run("ok - condition true", func(t *testing.T) {
+		c, err := qp.Condition(Key("test something"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.True(t, c)
+	})
+
+	t.Run("ok - condition false", func(t *testing.T) {
+		c, err := qp.Condition(Key("is not test"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.False(t, c)
+	})
+
+	t.Run("ok - key too short", func(t *testing.T) {
+		c, err := qp.Condition(Key("te"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.False(t, c)
+	})
+
+	t.Run("error - wrong type", func(t *testing.T) {
+		qp := Eq("test", struct{}{})
+
+		_, err := qp.Condition(Key{})
+
+		assert.Error(t, err)
+	})
+}
