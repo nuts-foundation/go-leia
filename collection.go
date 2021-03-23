@@ -28,16 +28,19 @@ import (
 
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
+	// AddIndex to this collection. It doesn't matter if the index already exists.
+	// If you want to override an index (by name) drop it first.
 	AddIndex(index Index) error
+	// DropIndex by name
 	DropIndex(name string) error
-
+	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
+	// Get returns a document by reference
 	Get(ref Reference) (Document, error)
+	// Delete a document
 	Delete(doc Document) error
-
 	// Find queries the collection for documents
 	Find(query Query) ([]Document, error)
-
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
 }
