@@ -26,6 +26,9 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// ErrNoIndex is returned when no index is found to query against
+var ErrNoIndex = errors.New("no index found")
+
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
@@ -40,10 +43,12 @@ type Collection interface {
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
+	// returns ErrNoIndex when no suitable index can be found
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
 	// Iterate over matching key/value pairs.
+	// returns ErrNoIndex when no suitable index can be found
 	Iterate(query Query, fn IteratorFn) error
 }
 
@@ -188,7 +193,7 @@ func (c *collection) Find(query Query) ([]Document, error) {
 
 	i := c.findIndex(query)
 	if i == nil {
-		return nil, errors.New("no index found")
+		return nil, ErrNoIndex
 	}
 
 	// the iteratorFn that collects results in a slice
@@ -230,7 +235,7 @@ func (c *collection) Iterate(query Query, fn IteratorFn) error {
 	i := c.findIndex(query)
 
 	if i == nil {
-		return errors.New("no index found")
+		return ErrNoIndex
 	}
 
 	return c.db.View(func(tx *bbolt.Tx) error {
