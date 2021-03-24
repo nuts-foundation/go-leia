@@ -46,9 +46,15 @@ type Index interface {
 	// Find the references matching the query
 	Find(bucket *bbolt.Bucket, query Query) ([]Reference, error)
 
+	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the IteratorFn.
+	Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error
+
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
 }
+
+// IteratorFn defines a function that is used as a callback when an Iterate query finds results. The function is called for each result entry.
+type IteratorFn func(key []byte, value []byte) error
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
@@ -253,34 +259,49 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 
 // Find documents given a search option.
 func (i *index) Find(bucket *bbolt.Bucket, query Query) ([]Reference, error) {
+	// the iteratorFn that collects results in a slice
+	refMap := map[string]bool{}
+	var newRef = make([]Reference, 0)
+	var refFn = func(key []byte, value []byte) error {
+		refs, err := entryToSlice(value)
+		if err != nil {
+			return err
+		}
+		for _, r := range refs {
+			if _, b := refMap[r.EncodeToString()]; !b {
+				refMap[r.EncodeToString()] = true
+				newRef = append(newRef, r)
+			}
+		}
+		return nil
+	}
+
+	return newRef, i.Iterate(bucket, query, refFn)
+}
+
+func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error {
 	var err error
 
 	cBucket := bucket.Bucket(i.BucketName())
 	if cBucket == nil {
-		return []Reference{}, err
+		return err
 	}
 
 	// sort the parts of the Query to conform to the index key building order
 	sortedQueryParts, err := i.sort(query)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	c := cBucket.Cursor()
-
-	return findR(c, Key{}, sortedQueryParts)
+	return findR(cBucket.Cursor(), Key{}, sortedQueryParts, fn)
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, error) {
+func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, fn IteratorFn) error {
 	cPart := parts[0]
 	seek, err := cPart.Seek()
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	// to prevent duplicates
-	refMap := map[string]bool{}
-	var newRef = make([]Reference, 0)
 
 	seek = ComposeKey(sKey, seek)
 	condition := true
@@ -295,25 +316,18 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 
 		condition, err = cPart.Condition(newp)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if condition {
-			var refs []Reference
 			if len(parts) > 1 {
 				nKey := ComposeKey(sKey, newp)
-				refs, err = findR(cursor, nKey, parts[1:])
+				err = findR(cursor, nKey, parts[1:], fn)
 
 			} else {
-				refs, err = entryToSlice(entry)
+				err = fn(cKey, entry)
 			}
 			if err != nil {
-				return nil, err
-			}
-			for _, r := range refs {
-				if _, b := refMap[r.EncodeToString()]; !b {
-					refMap[r.EncodeToString()] = true
-					newRef = append(newRef, r)
-				}
+				return err
 			}
 		} else {
 			eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
@@ -321,7 +335,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart) ([]Reference, erro
 		}
 	}
 
-	return newRef, nil
+	return nil
 }
 
 func entryToSlice(eBytes []byte) ([]Reference, error) {

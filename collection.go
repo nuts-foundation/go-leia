@@ -43,6 +43,8 @@ type Collection interface {
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
+	// Iterate over matching key/value pairs.
+	Iterate(query Query, fn IteratorFn) error
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -210,6 +212,21 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	})
 
 	return docs, err
+}
+
+func (c *collection) Iterate(query Query, fn IteratorFn) error {
+	i := c.findIndex(query)
+
+	if i == nil {
+		return errors.New("no index found")
+	}
+
+	return c.db.View(func(tx *bbolt.Tx) error {
+		// nil is not possible since adding an index creates the iBucket
+		iBucket := tx.Bucket([]byte(c.Name))
+
+		return i.Iterate(iBucket, query, fn)
+	})
 }
 
 // Delete a document from the store, this also removes the entries from indices
