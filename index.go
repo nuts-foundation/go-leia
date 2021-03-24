@@ -43,9 +43,6 @@ type Index interface {
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
 
-	// Find the references matching the query
-	Find(bucket *bbolt.Bucket, query Query) ([]Reference, error)
-
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the IteratorFn.
 	Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error
 
@@ -255,28 +252,6 @@ func (i *index) sort(query Query) ([]QueryPart, error) {
 	}
 
 	return sorted, nil
-}
-
-// Find documents given a search option.
-func (i *index) Find(bucket *bbolt.Bucket, query Query) ([]Reference, error) {
-	// the iteratorFn that collects results in a slice
-	refMap := map[string]bool{}
-	var newRef = make([]Reference, 0)
-	var refFn = func(key []byte, value []byte) error {
-		refs, err := entryToSlice(value)
-		if err != nil {
-			return err
-		}
-		for _, r := range refs {
-			if _, b := refMap[r.EncodeToString()]; !b {
-				refMap[r.EncodeToString()] = true
-				newRef = append(newRef, r)
-			}
-		}
-		return nil
-	}
-
-	return newRef, i.Iterate(bucket, query, refFn)
 }
 
 func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error {

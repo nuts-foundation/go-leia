@@ -187,28 +187,40 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	var docs []Document
 
 	i := c.findIndex(query)
-
 	if i == nil {
 		return nil, errors.New("no index found")
 	}
 
-	err := c.db.View(func(tx *bbolt.Tx) error {
-		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(c.Name))
-
-		refs, err := i.Find(iBucket, query)
+	// the iteratorFn that collects results in a slice
+	refMap := map[string]bool{}
+	var newRef = make([]Reference, 0)
+	var refFn = func(key []byte, value []byte) error {
+		refs, err := entryToSlice(value)
 		if err != nil {
 			return err
 		}
-
-		docs = make([]Document, len(refs))
-		for i, r := range refs {
-			docs[i], err = c.globalCollection.Get(r)
-			if err != nil {
-				return err
+		for _, r := range refs {
+			if _, b := refMap[r.EncodeToString()]; !b {
+				refMap[r.EncodeToString()] = true
+				newRef = append(newRef, r)
 			}
 		}
 		return nil
+	}
+
+	if err := c.Iterate(query, refFn); err != nil {
+		return nil, err
+	}
+
+	err := c.db.View(func(tx *bbolt.Tx) (err error) {
+		docs = make([]Document, len(newRef))
+		for i, r := range newRef {
+			docs[i], err = c.globalCollection.Get(r)
+			if err != nil {
+				return
+			}
+		}
+		return
 	})
 
 	return docs, err
