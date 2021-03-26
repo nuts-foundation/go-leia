@@ -291,63 +291,52 @@ func TestIndex_Find(t *testing.T) {
 
 	t.Run("ok - not found", func(t *testing.T) {
 		q := New(Eq("key", "not_found"))
+		found := false
 
-		var refs []Reference
-		var err error
-		db.View(func(tx *bbolt.Tx) error {
+		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
-			return err
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				found = true
+				return nil
+			})
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 0)
+		assert.False(t, found)
 	})
 
 	t.Run("ok - exact match", func(t *testing.T) {
 		q := New(Eq("key", "value")).And(Eq("key2", "value2")).And(Eq("key3", 1.0))
+		count := 0
 
-		var refs []Reference
-		var err error
-		db.View(func(tx *bbolt.Tx) error {
+		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
-			return err
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				count++
+				return nil
+			})
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 1)
+		assert.Equal(t, 1, count)
 	})
 
 	t.Run("ok - partial match", func(t *testing.T) {
 		q := New(Eq("key", "value"))
 
-		var refs []Reference
-		var err error
-		db.View(func(tx *bbolt.Tx) error {
+		count := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
-			return err
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				count++
+				return nil
+			})
 		})
 
 		assert.NoError(t, err)
-		assert.Len(t, refs, 2)
-	})
-
-	t.Run("ok - nothing indexed", func(t *testing.T) {
-		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
-		q := New(Eq("key", "value"))
-
-		var refs []Reference
-		var err error
-		db.View(func(tx *bbolt.Tx) error {
-			b := testBucket(t, tx)
-			refs, err = i.Find(b, q)
-			return err
-		})
-
-		assert.NoError(t, err)
-		assert.Len(t, refs, 0)
+		// it's a triple index where 4 matching trees exist
+		assert.Equal(t, 4, count)
 	})
 
 	t.Run("error - wrong query", func(t *testing.T) {
@@ -355,8 +344,9 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			_, err := i.Find(b, q)
-			return err
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				return nil
+			})
 		})
 
 		assert.Error(t, err)

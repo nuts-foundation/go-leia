@@ -26,6 +26,9 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// ErrNoIndex is returned when no index is found to query against
+var ErrNoIndex = errors.New("no index found")
+
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
@@ -40,9 +43,13 @@ type Collection interface {
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
+	// returns ErrNoIndex when no suitable index can be found
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
+	// Iterate over matching key/value pairs.
+	// returns ErrNoIndex when no suitable index can be found
+	Iterate(query Query, fn IteratorFn) error
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -185,31 +192,58 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	var docs []Document
 
 	i := c.findIndex(query)
-
 	if i == nil {
-		return nil, errors.New("no index found")
+		return nil, ErrNoIndex
 	}
 
-	err := c.db.View(func(tx *bbolt.Tx) error {
-		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(c.Name))
-
-		refs, err := i.Find(iBucket, query)
+	// the iteratorFn that collects results in a slice
+	refMap := map[string]bool{}
+	var newRef = make([]Reference, 0)
+	var refFn = func(key []byte, value []byte) error {
+		refs, err := entryToSlice(value)
 		if err != nil {
 			return err
 		}
-
-		docs = make([]Document, len(refs))
-		for i, r := range refs {
-			docs[i], err = c.globalCollection.Get(r)
-			if err != nil {
-				return err
+		for _, r := range refs {
+			if _, b := refMap[r.EncodeToString()]; !b {
+				refMap[r.EncodeToString()] = true
+				newRef = append(newRef, r)
 			}
 		}
 		return nil
+	}
+
+	if err := c.Iterate(query, refFn); err != nil {
+		return nil, err
+	}
+
+	err := c.db.View(func(tx *bbolt.Tx) (err error) {
+		docs = make([]Document, len(newRef))
+		for i, r := range newRef {
+			docs[i], err = c.globalCollection.Get(r)
+			if err != nil {
+				return
+			}
+		}
+		return
 	})
 
 	return docs, err
+}
+
+func (c *collection) Iterate(query Query, fn IteratorFn) error {
+	i := c.findIndex(query)
+
+	if i == nil {
+		return ErrNoIndex
+	}
+
+	return c.db.View(func(tx *bbolt.Tx) error {
+		// nil is not possible since adding an index creates the iBucket
+		iBucket := tx.Bucket([]byte(c.Name))
+
+		return i.Iterate(iBucket, query, fn)
+	})
 }
 
 // Delete a document from the store, this also removes the entries from indices

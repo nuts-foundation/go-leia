@@ -244,6 +244,42 @@ func TestCollection_Find(t *testing.T) {
 	})
 }
 
+
+func TestCollection_Iterate(t *testing.T) {
+	db := testDB(t)
+	i := testIndex(t)
+	c := createCollection(db)
+	c.AddIndex(i)
+	c.Add([]Document{exampleDoc})
+	q := New(Eq("key", "value"))
+
+	t.Run("ok - count fn", func(t *testing.T) {
+		count := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				count++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("error", func(t *testing.T) {
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				return errors.New("b00m!")
+			})
+		})
+
+		assert.Error(t, err)
+	})
+}
+
 func TestCollection_Reference(t *testing.T) {
 	db := testDB(t)
 
