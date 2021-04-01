@@ -234,6 +234,16 @@ func TestCollection_Find(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("error - nil query", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+
+		_, err := c.Find(nil)
+
+		assert.Error(t, err)
+	})
+
 	t.Run("error - no index", func(t *testing.T) {
 		c := createCollection(db)
 		q := New(Eq("key", "value"))

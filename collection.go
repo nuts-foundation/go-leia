@@ -287,6 +287,10 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 // The index may, at most, be one longer than the number of search options.
 // The longest index will win.
 func (c *collection) findIndex(query Query) Index {
+	if query == nil {
+		return nil
+	}
+
 	// first map the indices to the number of matching search options
 	var cIndex Index
 	var cMatch float64
