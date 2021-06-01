@@ -53,6 +53,9 @@ type Collection interface {
 }
 
 // ReferenceFunc is the func type used for creating references.
+// references are the key under which a document is stored.
+// a ReferenceFunc could be the sha256 func or something that stores document in chronological order.
+// The first would be best for random access, the latter for chronological access
 type ReferenceFunc func(doc Document) (Reference, error)
 
 // default for shasum docs

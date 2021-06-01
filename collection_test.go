@@ -59,8 +59,10 @@ func TestCollection_AddIndex(t *testing.T) {
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
 		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
-		c.AddIndex(i)
+		err := c.Add([]Document{exampleDoc})
+		assert.NoError(t, err)
+		err = c.AddIndex(i)
+		assert.NoError(t, err)
 
 		assertIndexSize(t, db, i, 1)
 		assertSize(t, db, GlobalCollection, 1)
@@ -98,7 +100,7 @@ func TestCollection_DropIndex(t *testing.T) {
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		i2 := NewIndex("other",
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
 		)
 		c := createCollection(db)
 		c.Add([]Document{exampleDoc})
@@ -338,7 +340,7 @@ func TestCollection_Get(t *testing.T) {
 
 func testIndex(t *testing.T) Index {
 	return NewIndex(t.Name(),
-		jsonIndexPart{name: "key", jsonPath: "path.part"},
+		jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
 	)
 }
 

@@ -28,10 +28,10 @@ import (
 
 func main() {
 	var compoundIndex = leia.NewIndex("compound",
-		leia.NewJSONIndexPart("id", "id"),
-		leia.NewJSONIndexPart("obj", "obj.key"),
-		leia.NewJSONIndexPart("list", "list.key"),
-		leia.NewJSONIndexPart("sublist", "list.subList"),
+		leia.NewJSONIndexPart("id", "id", leia.WhiteSpaceTokenizer, leia.ToLower),
+		leia.NewJSONIndexPart("obj", "obj.key", leia.WhiteSpaceTokenizer, leia.NoTransform),
+		leia.NewJSONIndexPart("list", "list.key", leia.WhiteSpaceTokenizer, leia.NoTransform),
+		leia.NewJSONIndexPart("sublist", "list.subList", leia.WhiteSpaceTokenizer, leia.NoTransform),
 	)
 
 	s, err := leia.NewStore("./test/documents.db")
@@ -66,7 +66,7 @@ func main() {
 	//
 	//fmt.Println("added docs")
 
-	query := leia.New(leia.Eq("id", "ID16")).
+	query := leia.New(leia.Eq("id", "id16")).
 		And(leia.Eq("obj", "OBJ.VAL16")).
 		And(leia.Eq("list", "LIST.VAL16")).
 		And(leia.Eq("sublist", "SUBLIST.VAL16"))
