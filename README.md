@@ -20,11 +20,3 @@ perf
 1m entries >> 700mb file >> 0.2 ms search time
 deletes and writes take longer... >> 50ms
 The same when using compound indices of 4 lvls
-
-## mocks
-
-```
-mockgen -destination=db_mock.go -package=leia -source=db.go
-mockgen -destination=index_mock.go -package=leia -source=index.go
-mockgen -destination=collection_mock.go -package=leia -source=collection.go
-```

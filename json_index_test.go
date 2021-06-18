@@ -28,13 +28,13 @@ import (
 
 // These tests are for index testing. It uses the json indexPart implementation
 
-func TestIndex_Add(t *testing.T) {
+func TestIndex_AddJson(t *testing.T) {
 	doc := Document(jsonExample)
 	ref, _ := defaultReferenceCreator(doc)
 	db := testDB(t)
 
 	t.Run("ok - value added as key to document reference", func(t *testing.T) {
-		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
+		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform})
 
 		db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, doc)
@@ -45,8 +45,8 @@ func TestIndex_Add(t *testing.T) {
 
 	t.Run("ok - values added as key to document reference", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.parts"},
-			jsonIndexPart{name: "key2", jsonPath: "path.part"},
+			jsonIndexPart{name: "key", jsonPath: "path.parts", transformer: NoTransform},
+			jsonIndexPart{name: "key2", jsonPath: "path.part", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -59,8 +59,8 @@ func TestIndex_Add(t *testing.T) {
 
 	t.Run("ok - value added as key using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key2", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key2", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -75,8 +75,8 @@ func TestIndex_Add(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key2", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key2", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 		doc2 := Document(jsonExample2)
 		ref2, _ := defaultReferenceCreator(doc2)
@@ -97,7 +97,7 @@ func TestIndex_Add(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts"})
+		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts", transformer: NoTransform})
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, []byte("}"))
@@ -108,8 +108,8 @@ func TestIndex_Add(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -126,7 +126,7 @@ func TestIndex_Delete(t *testing.T) {
 	db := testDB(t)
 
 	t.Run("ok - value added and removed", func(t *testing.T) {
-		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part"})
+		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform})
 
 		db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -139,8 +139,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - value added and removed using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -153,7 +153,7 @@ func TestIndex_Delete(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts"})
+		i := NewIndex(t.Name(), jsonIndexPart{name: "key", jsonPath: "path.parts", transformer: NoTransform})
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -166,8 +166,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -180,8 +180,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - not indexed", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -194,8 +194,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
-			jsonIndexPart{name: "key", jsonPath: "path.more.parts"},
+			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.more.parts", transformer: NoTransform},
 		)
 		doc2 := Document(jsonExample2)
 		ref2, _ := defaultReferenceCreator(doc2)
@@ -278,9 +278,9 @@ func TestIndex_Find(t *testing.T) {
 	db := testDB(t)
 
 	i := NewIndex(t.Name(),
-		jsonIndexPart{name: "key", jsonPath: "path.part"},
-		jsonIndexPart{name: "key2", jsonPath: "path.parts"},
-		jsonIndexPart{name: "key3", jsonPath: "path.more.parts"},
+		jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+		jsonIndexPart{name: "key2", jsonPath: "path.parts", transformer: NoTransform},
+		jsonIndexPart{name: "key3", jsonPath: "path.more.parts", transformer: NoTransform},
 	)
 
 	db.Update(func(tx *bbolt.Tx) error {

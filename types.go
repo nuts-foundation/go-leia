@@ -108,6 +108,8 @@ func (r Reference) ByteSize() int {
 
 func toBytes(data interface{}) ([]byte, error) {
 	switch data.(type) {
+	case []uint8:
+		return data.([]byte), nil
 	case string:
 		return []byte(data.(string)), nil
 	case float64:

@@ -64,10 +64,15 @@ func NewIndex(name string, parts ...IndexPart) Index {
 }
 
 type IndexPart interface {
-	// for matching against a Query
+	// Name is used for matching against a Query
 	Name() string
 	// Keys returns the keys that matched this document. Multiple keys are combined by the index
 	Keys(document Document) ([]Key, error)
+	// Tokenizer may split up Keys and search terms. For example split a sentence into words.
+	Tokenize(value interface{}) []interface{}
+	// Transform is a function that alters the value to be indexed as well as any search criteria.
+	// For example LowerCase is a Transform function that transforms the value to lower case.
+	Transform(value interface{}) interface{}
 }
 
 type index struct {
@@ -268,45 +273,49 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error 
 		return err
 	}
 
-	return findR(cBucket.Cursor(), Key{}, sortedQueryParts, fn)
+	return findR(cBucket.Cursor(), Key{}, sortedQueryParts, i.indexParts, fn)
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, fn IteratorFn) error {
+func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []IndexPart, fn IteratorFn) error {
 	cPart := parts[0]
 	seek, err := cPart.Seek()
 	if err != nil {
 		return err
 	}
-
-	seek = ComposeKey(sKey, seek)
-	condition := true
-	for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
-		// remove prefix (+1), Split and take first
-		pf := cKey[len(sKey)+1:]
-		if len(sKey) == 0 {
-			pf = cKey
-		}
-		pfk := Key(pf)
-		newp := pfk.Split()[0] // todo bounds check?
-
-		condition, err = cPart.Condition(newp)
-		if err != nil {
-			return err
-		}
-		if condition {
-			if len(parts) > 1 {
-				nKey := ComposeKey(sKey, newp)
-				err = findR(cursor, nKey, parts[1:], fn)
-
-			} else {
-				err = fn(cKey, entry)
+	// value/search terms transformation (eg lowercase)
+	tokens := indexParts[0].Tokenize(seek)
+	for _, token := range tokens {
+		seek = indexParts[0].Transform(token).(Key)
+		seek = ComposeKey(sKey, seek)
+		condition := true
+		for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
+			// remove prefix (+1), Split and take first
+			pf := cKey[len(sKey)+1:]
+			if len(sKey) == 0 {
+				pf = cKey
 			}
+			pfk := Key(pf)
+			newp := pfk.Split()[0] // todo bounds check?
+
+			condition, err = cPart.Condition(newp)
 			if err != nil {
 				return err
 			}
-		} else {
-			eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
-			_, _ = cursor.Seek(eKey)
+			if condition {
+				if len(parts) > 1 {
+					nKey := ComposeKey(sKey, newp)
+					err = findR(cursor, nKey, parts[1:], indexParts[1:], fn)
+				} else {
+					// value found call iterator function
+					err = fn(cKey, entry)
+				}
+				if err != nil {
+					return err
+				}
+			} else {
+				eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
+				_, _ = cursor.Seek(eKey)
+			}
 		}
 	}
 

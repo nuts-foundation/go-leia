@@ -26,16 +26,28 @@ import (
 	errors2 "github.com/pkg/errors"
 )
 
-func NewJSONIndexPart(name string, jsonPath string) IndexPart {
+func NewJSONIndexPart(name string, jsonPath string, tokenizer Tokenizer, transformer Transform) IndexPart {
+	if transformer == nil {
+		transformer = NoTransform
+	}
+
+	if tokenizer == nil {
+		tokenizer = NoTokenizer
+	}
+
 	return jsonIndexPart{
-		name:     name,
-		jsonPath: jsonPath,
+		name:        name,
+		jsonPath:    jsonPath,
+		tokenizer:   tokenizer,
+		transformer: transformer,
 	}
 }
 
 type jsonIndexPart struct {
-	name     string
-	jsonPath string
+	name        string
+	jsonPath    string
+	tokenizer   Tokenizer
+	transformer Transform
 }
 
 func (j jsonIndexPart) pathParts() []string {
@@ -52,7 +64,11 @@ func (j jsonIndexPart) Keys(document Document) ([]Key, error) {
 		return nil, errors2.Wrap(err, "unable to parse document")
 	}
 
-	matches := j.matchRecursive(j.pathParts(), val)
+	matches, err := j.matchRecursive(j.pathParts(), val)
+	if err != nil {
+		return nil, err
+	}
+
 	keys := make([]Key, len(matches))
 	for i, m := range matches {
 		b, err := toBytes(m)
@@ -65,28 +81,63 @@ func (j jsonIndexPart) Keys(document Document) ([]Key, error) {
 	return keys, nil
 }
 
-func (j jsonIndexPart) matchRecursive(parts []string, val interface{}) []interface{} {
+func (j jsonIndexPart) Tokenize(value interface{}) []interface{} {
+	if j.tokenizer == nil {
+		return []interface{}{value}
+	}
+
+	if s, ok := value.(string); ok {
+		tokens := j.tokenizer(s)
+		result := make([]interface{}, len(tokens))
+		for i, t := range tokens {
+			result[i] = t
+		}
+		return result
+	}
+	return []interface{}{value}
+}
+
+func (j jsonIndexPart) Transform(value interface{}) interface{} {
+	if j.transformer == nil {
+		return value
+	}
+	if s, ok := value.(string); ok {
+		return j.transformer(s)
+	}
+	return value
+}
+
+func (j jsonIndexPart) matchRecursive(parts []string, val interface{}) ([]interface{}, error) {
 
 	if a, ok := val.([]interface{}); ok {
 		var ra []interface{}
 		for _, ai := range a {
-			interm := j.matchRecursive(parts, ai)
+			interm, err := j.matchRecursive(parts, ai)
+			if err != nil {
+				return nil, err
+			}
 			ra = append(ra, interm...)
 		}
 
-		return ra
+		return ra, nil
 	}
 
 	if m, ok := val.(map[string]interface{}); ok {
 		if len(parts) == 0 {
-			return []interface{}{}
+			return []interface{}{}, nil
 		}
 		if v, ok2 := m[parts[0]]; ok2 {
 			return j.matchRecursive(parts[1:], v)
 		}
 		// no match
-		return []interface{}{}
+		return []interface{}{}, nil
 	}
 
-	return []interface{}{val}
+	tokens := j.Tokenize(val)
+	result := make([]interface{}, len(tokens))
+	for i, t := range tokens {
+		result[i] = j.Transform(t)
+	}
+
+	return result, nil
 }
