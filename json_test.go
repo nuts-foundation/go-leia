@@ -29,7 +29,7 @@ import (
 
 func TestNewJSONIndexPart(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path", nil, nil)
 
 		jip, ok := ip.(jsonIndexPart)
 
@@ -43,7 +43,7 @@ func TestNewJSONIndexPart(t *testing.T) {
 
 func TestJsonIndexPart_Name(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path", nil, nil)
 
 		assert.Equal(t, "name", ip.Name())
 	})
@@ -51,7 +51,7 @@ func TestJsonIndexPart_Name(t *testing.T) {
 
 func TestJsonIndexPart_pathParts(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.part", nil, nil)
 
 		jip, ok := ip.(jsonIndexPart)
 
@@ -78,7 +78,7 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 `
 
 	t.Run("ok - sub object", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.part", nil, nil)
 		keys, err := ip.Keys([]byte(json))
 
 		if !assert.NoError(t, err) {
@@ -93,7 +93,7 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - sub sub object", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.more.parts", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.more.parts", nil, nil)
 		keys, err := ip.Keys([]byte(json))
 
 		if !assert.NoError(t, err) {
@@ -111,7 +111,7 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - list", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.parts", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.parts", nil, nil)
 		keys, err := ip.Keys([]byte(json))
 
 		if !assert.NoError(t, err) {
@@ -127,7 +127,7 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - no match", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.party", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.party", nil, nil)
 		keys, err := ip.Keys([]byte(json))
 
 		if !assert.NoError(t, err) {
@@ -138,7 +138,7 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("error - incorrect document", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", NoTokenizer, NoTransform)
+		ip := NewJSONIndexPart("name", "path.part", nil, nil)
 		_, err := ip.Keys([]byte("}"))
 
 		assert.Error(t, err)

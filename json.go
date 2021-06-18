@@ -27,14 +27,6 @@ import (
 )
 
 func NewJSONIndexPart(name string, jsonPath string, tokenizer Tokenizer, transformer Transform) IndexPart {
-	if transformer == nil {
-		transformer = NoTransform
-	}
-
-	if tokenizer == nil {
-		tokenizer = NoTokenizer
-	}
-
 	return jsonIndexPart{
 		name:        name,
 		jsonPath:    jsonPath,
