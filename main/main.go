@@ -29,9 +29,9 @@ import (
 func main() {
 	var compoundIndex = leia.NewIndex("compound",
 		leia.NewJSONIndexPart("id", "id", leia.WhiteSpaceTokenizer, leia.ToLower),
-		leia.NewJSONIndexPart("obj", "obj.key", leia.WhiteSpaceTokenizer, leia.NoTransform),
-		leia.NewJSONIndexPart("list", "list.key", leia.WhiteSpaceTokenizer, leia.NoTransform),
-		leia.NewJSONIndexPart("sublist", "list.subList", leia.WhiteSpaceTokenizer, leia.NoTransform),
+		leia.NewJSONIndexPart("obj", "obj.key", leia.WhiteSpaceTokenizer, nil),
+		leia.NewJSONIndexPart("list", "list.key", leia.WhiteSpaceTokenizer, nil),
+		leia.NewJSONIndexPart("sublist", "list.subList", leia.WhiteSpaceTokenizer, nil),
 	)
 
 	s, err := leia.NewStore("./test/documents.db")

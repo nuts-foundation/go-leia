@@ -27,11 +27,6 @@ import (
 // Transform is a function definition for transforming values and search terms.
 type Transform func(string) string
 
-// NoTransform is the default Transform function and returns the given data as is.
-func NoTransform(terms string) string {
-	return terms
-}
-
 // ToLower transforms all Unicode letters mapped to their lower case.
 // byte values that do not correspond to letters are ignored.
 func ToLower(terms string) string {
@@ -41,15 +36,10 @@ func ToLower(terms string) string {
 // Tokenizer is a function definition that transforms a text into tokens
 type Tokenizer func(string) []string
 
-const nonWhitespaceRegex = "/\\S/gm"
+const nonWhitespaceRegex = `\S+`
 
-// WhiteSpaceTokenizer tokenizes the string based on the /\S/gm regex
+// WhiteSpaceTokenizer tokenizes the string based on the /\S/g regex
 func WhiteSpaceTokenizer(text string) []string {
 	exp, _ := regexp.Compile(nonWhitespaceRegex)
 	return exp.FindAllString(text, -1)
-}
-
-// NoTokenizer returns the given text as single token.
-func NoTokenizer(text string) []string {
-	return []string{text}
 }

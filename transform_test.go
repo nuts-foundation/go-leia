@@ -20,7 +20,6 @@
 package leia
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -42,7 +41,7 @@ func (t testIndexPart) Name() string {
 }
 
 func (t testIndexPart) Keys(document Document) ([]Key, error) {
-	words := strings.Split(document.String(), " ")
+	words := t.tokenizer(string(document))
 	keys := make([]Key, len(words))
 	for i, w := range words {
 		transformed := t.Transform(w)
@@ -170,5 +169,13 @@ func TestIndex_Iterate(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, count)
+	})
+}
+
+func TestWhiteSpaceTokenizer(t *testing.T) {
+	t.Run("ok - consecutive whitespace", func(t *testing.T) {
+		tokens := WhiteSpaceTokenizer("WORD1 WORD2")
+
+		assert.Len(t, tokens, 2)
 	})
 }

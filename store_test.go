@@ -71,7 +71,7 @@ func TestStore_Collection(t *testing.T) {
 		c2 := s.Collection("test").(*collection)
 
 		assert.Len(t, c2.IndexList, 0)
-		c.AddIndex(NewIndex("test", NewJSONIndexPart("test", "path", NoTokenizer, NoTransform)))
+		c.AddIndex(NewIndex("test", NewJSONIndexPart("test", "path", nil, nil)))
 
 		assert.Len(t, c2.IndexList, 1)
 	})

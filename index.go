@@ -68,7 +68,7 @@ type IndexPart interface {
 	Name() string
 	// Keys returns the keys that matched this document. Multiple keys are combined by the index
 	Keys(document Document) ([]Key, error)
-	// Tokenizer may split up Keys and search terms. For example split a sentence into words.
+	// Tokenize may split up Keys and search terms. For example split a sentence into words.
 	Tokenize(value interface{}) []interface{}
 	// Transform is a function that alters the value to be indexed as well as any search criteria.
 	// For example LowerCase is a Transform function that transforms the value to lower case.

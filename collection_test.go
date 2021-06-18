@@ -100,7 +100,7 @@ func TestCollection_DropIndex(t *testing.T) {
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		i2 := NewIndex("other",
-			jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+			jsonIndexPart{name: "key", jsonPath: "path.part"},
 		)
 		c := createCollection(db)
 		c.Add([]Document{exampleDoc})
@@ -340,7 +340,7 @@ func TestCollection_Get(t *testing.T) {
 
 func testIndex(t *testing.T) Index {
 	return NewIndex(t.Name(),
-		jsonIndexPart{name: "key", jsonPath: "path.part", transformer: NoTransform},
+		jsonIndexPart{name: "key", jsonPath: "path.part"},
 	)
 }
 
