@@ -75,6 +75,10 @@ func (t testIndexPart) Transform(value interface{}) interface{} {
 	return value
 }
 
+func (t testIndexPart) Transformer() Transform {
+	return t.transformer
+}
+
 func TestIndex_Add(t *testing.T) {
 	i := NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 	db := testDB(t)

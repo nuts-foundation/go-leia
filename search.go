@@ -21,6 +21,7 @@ package leia
 
 import (
 	"bytes"
+	"strings"
 )
 
 type Query interface {
@@ -40,7 +41,7 @@ type QueryPart interface {
 	Seek() (Key, error)
 
 	// Condition returns true if given key falls within this condition.
-	Condition(key Key) (bool, error)
+	Condition(key Key, transform Transform) (bool, error)
 }
 
 // New creates a new query with an initial query part. Both begin and end are inclusive for the conditional check.
@@ -102,7 +103,14 @@ func (e eqPart) Seek() (Key, error) {
 	return toBytes(e.value)
 }
 
-func (e eqPart) Condition(key Key) (bool, error) {
+func (e eqPart) Condition(key Key, transform Transform) (bool, error) {
+	if transform != nil {
+		s, ok := e.value.(string)
+		if ok {
+			return transform(s) == key.String(), nil
+		}
+	}
+
 	b, err := toBytes(e.value)
 	if err != nil {
 		return false, err
@@ -124,7 +132,7 @@ func (r rangePart) Seek() (Key, error) {
 	return toBytes(r.begin)
 }
 
-func (r rangePart) Condition(key Key) (bool, error) {
+func (r rangePart) Condition(key Key, _ Transform) (bool, error) {
 	b, err := toBytes(r.end)
 	if err != nil {
 		return false, err
@@ -145,7 +153,11 @@ func (p prefixPart) Seek() (Key, error) {
 	return toBytes(p.value)
 }
 
-func (p prefixPart) Condition(key Key) (bool, error) {
+func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
+	if transform != nil {
+		return strings.HasPrefix(key.String(), transform(p.value.(string))), nil
+	}
+
 	prefix, err := toBytes(p.value)
 	if err != nil {
 		return false, err

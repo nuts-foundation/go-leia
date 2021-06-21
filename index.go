@@ -73,6 +73,8 @@ type IndexPart interface {
 	// Transform is a function that alters the value to be indexed as well as any search criteria.
 	// For example LowerCase is a Transform function that transforms the value to lower case.
 	Transform(value interface{}) interface{}
+	// Transformer return the Transform function
+	Transformer() Transform
 }
 
 type index struct {
@@ -297,7 +299,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []Index
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
 
-			condition, err = cPart.Condition(newp)
+			condition, err = cPart.Condition(newp, indexParts[0].Transformer())
 			if err != nil {
 				return err
 			}

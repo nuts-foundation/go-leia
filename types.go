@@ -40,7 +40,6 @@ func (d Document) String() string {
 	return string(d)
 }
 
-// todo: mvoe to collection
 // Reference returns the reference of the document
 func (d Document) Reference() Reference {
 	return NewReference(d)
@@ -83,7 +82,6 @@ func (k Key) Split() []Key {
 	return nk
 }
 
-// todo: move to collection
 // NewReference calculates the sha256 of a piece of data and returns it as reference type
 func NewReference(data []byte) Reference {
 	s := sha256.Sum256(data)

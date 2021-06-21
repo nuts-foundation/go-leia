@@ -278,7 +278,7 @@ func TestIndex_Find(t *testing.T) {
 	db := testDB(t)
 
 	i := NewIndex(t.Name(),
-		jsonIndexPart{name: "key", jsonPath: "path.part"},
+		jsonIndexPart{name: "key", jsonPath: "path.part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower},
 		jsonIndexPart{name: "key2", jsonPath: "path.parts"},
 		jsonIndexPart{name: "key3", jsonPath: "path.more.parts"},
 	)
@@ -307,6 +307,22 @@ func TestIndex_Find(t *testing.T) {
 
 	t.Run("ok - exact match", func(t *testing.T) {
 		q := New(Eq("key", "value")).And(Eq("key2", "value2")).And(Eq("key3", 1.0))
+		count := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key []byte, value []byte) error {
+				count++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("ok - match through transformer", func(t *testing.T) {
+		q := New(Eq("key", "VALUE")).And(Eq("key2", "value2")).And(Eq("key3", 1.0))
 		count := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
