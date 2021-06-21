@@ -182,6 +182,17 @@ func TestPrefix(t *testing.T) {
 		assert.True(t, c)
 	})
 
+	t.Run("ok - condition true with transform", func(t *testing.T) {
+		qp := Prefix("test", "TEST")
+		c, err := qp.Condition(Key("test something"), ToLower)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.True(t, c)
+	})
+
 	t.Run("ok - condition false", func(t *testing.T) {
 		c, err := qp.Condition(Key("is not test"), nil)
 
