@@ -155,7 +155,10 @@ func (p prefixPart) Seek() (Key, error) {
 
 func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
 	if transform != nil {
-		return strings.HasPrefix(key.String(), transform(p.value.(string))), nil
+		s, ok := p.value.(string)
+		if ok {
+			return strings.HasPrefix(key.String(), transform(s)), nil
+		}
 	}
 
 	prefix, err := toBytes(p.value)
