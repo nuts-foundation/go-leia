@@ -21,7 +21,6 @@ package leia
 
 import (
 	"bytes"
-	"strings"
 )
 
 type Query interface {
@@ -41,6 +40,7 @@ type QueryPart interface {
 	Seek() (Key, error)
 
 	// Condition returns true if given key falls within this condition.
+	// The optional transform fn is applied to this query part before evaluation is done.
 	Condition(key Key, transform Transform) (bool, error)
 }
 
@@ -105,10 +105,12 @@ func (e eqPart) Seek() (Key, error) {
 
 func (e eqPart) Condition(key Key, transform Transform) (bool, error) {
 	if transform != nil {
-		s, ok := e.value.(string)
-		if ok {
-			return transform(s) == key.String(), nil
+		transformed := transform(e.value)
+		transformedBytes, err := toBytes(transformed)
+		if err != nil {
+			return false, err
 		}
+		return bytes.Compare(key, transformedBytes) == 0, nil
 	}
 
 	b, err := toBytes(e.value)
@@ -154,24 +156,16 @@ func (p prefixPart) Seek() (Key, error) {
 }
 
 func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
+	transformed := p.value
 	if transform != nil {
-		s, ok := p.value.(string)
-		if ok {
-			return strings.HasPrefix(key.String(), transform(s)), nil
-		}
+		transformed = transform(p.value)
 	}
 
-	prefix, err := toBytes(p.value)
+	prefix, err := toBytes(transformed)
 	if err != nil {
 		return false, err
 	}
 
-	if len(prefix) > len(key) {
-		return false, nil
-	}
-
-	search := []byte(key[:len(prefix)])
-
-	return bytes.Compare(search, prefix) == 0, nil
+	return bytes.HasPrefix(key, prefix), nil
 }
 

@@ -93,18 +93,7 @@ func (j jsonIndexPart) Transform(value interface{}) interface{} {
 	if j.transformer == nil {
 		return value
 	}
-	if s, ok := value.(string); ok {
-		return j.transformer(s)
-	}
-	if s, ok := value.(Key); ok {
-		transformed := j.transformer(s.String())
-		return Key(transformed)
-	}
-	return value
-}
-
-func (j jsonIndexPart) Transformer() Transform {
-	return j.transformer
+	return j.transformer(value)
 }
 
 func (j jsonIndexPart) matchRecursive(parts []string, val interface{}) ([]interface{}, error) {

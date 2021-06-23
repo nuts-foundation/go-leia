@@ -25,12 +25,21 @@ import (
 )
 
 // Transform is a function definition for transforming values and search terms.
-type Transform func(string) string
+type Transform func(interface{}) interface{}
 
 // ToLower transforms all Unicode letters mapped to their lower case.
-// byte values that do not correspond to letters are ignored.
-func ToLower(terms string) string {
-	return strings.ToLower(terms)
+// It only transforms objects that conform to the Stringer interface.
+func ToLower(terms interface{}) interface{} {
+	switch terms.(type) {
+	case string:
+		return strings.ToLower(terms.(string))
+	case Key:
+		return strings.ToLower(terms.(Key).String())
+	case []byte:
+		return strings.ToLower(string(terms.([]byte)))
+	default:
+		return terms
+	}
 }
 
 // Tokenizer is a function definition that transforms a text into tokens

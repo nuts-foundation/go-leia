@@ -48,6 +48,19 @@ func (d Document) Reference() Reference {
 // Key is used as DB key type
 type Key []byte
 
+// KeyOf creates a key from an interface
+func KeyOf(value interface{}) Key {
+	switch value.(type) {
+	case string:
+		return []byte(value.(string))
+	case []byte:
+		return value.([]byte)
+	case Key:
+		return value.(Key)
+	}
+	return nil
+}
+
 // String returns the string representation, only useful if a Key represents readable bytes
 func (k Key) String() string {
 	return string(k)
