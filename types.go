@@ -40,7 +40,6 @@ func (d Document) String() string {
 	return string(d)
 }
 
-// todo: mvoe to collection
 // Reference returns the reference of the document
 func (d Document) Reference() Reference {
 	return NewReference(d)
@@ -48,6 +47,19 @@ func (d Document) Reference() Reference {
 
 // Key is used as DB key type
 type Key []byte
+
+// KeyOf creates a key from an interface
+func KeyOf(value interface{}) Key {
+	switch value.(type) {
+	case string:
+		return []byte(value.(string))
+	case []byte:
+		return value.([]byte)
+	case Key:
+		return value.(Key)
+	}
+	return nil
+}
 
 // String returns the string representation, only useful if a Key represents readable bytes
 func (k Key) String() string {
@@ -83,7 +95,6 @@ func (k Key) Split() []Key {
 	return nk
 }
 
-// todo: move to collection
 // NewReference calculates the sha256 of a piece of data and returns it as reference type
 func NewReference(data []byte) Reference {
 	s := sha256.Sum256(data)

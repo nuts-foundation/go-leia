@@ -61,7 +61,7 @@ func TestEq(t *testing.T) {
 	})
 
 	t.Run("ok - condition true", func(t *testing.T) {
-		c, err := qp.Condition(Key("test"))
+		c, err := qp.Condition(Key("test"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -71,7 +71,7 @@ func TestEq(t *testing.T) {
 	})
 
 	t.Run("ok - condition false", func(t *testing.T) {
-		c, err := qp.Condition(Key("test2"))
+		c, err := qp.Condition(Key("test2"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -83,7 +83,7 @@ func TestEq(t *testing.T) {
 	t.Run("error - wrong type", func(t *testing.T) {
 		qp := Eq("test", struct{}{})
 
-		_, err := qp.Condition(Key{})
+		_, err := qp.Condition(Key{}, nil)
 
 		assert.Error(t, err)
 	})
@@ -107,7 +107,7 @@ func TestRange(t *testing.T) {
 	})
 
 	t.Run("ok - condition true begin", func(t *testing.T) {
-		c, err := qp.Condition(Key("a"))
+		c, err := qp.Condition(Key("a"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -117,7 +117,7 @@ func TestRange(t *testing.T) {
 	})
 
 	t.Run("ok - condition true middle", func(t *testing.T) {
-		c, err := qp.Condition(Key("ab"))
+		c, err := qp.Condition(Key("ab"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -127,7 +127,7 @@ func TestRange(t *testing.T) {
 	})
 
 	t.Run("ok - condition true end", func(t *testing.T) {
-		c, err := qp.Condition(Key("b"))
+		c, err := qp.Condition(Key("b"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -137,7 +137,7 @@ func TestRange(t *testing.T) {
 	})
 
 	t.Run("ok - condition false", func(t *testing.T) {
-		c, err := qp.Condition(Key("bb"))
+		c, err := qp.Condition(Key("bb"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -149,7 +149,7 @@ func TestRange(t *testing.T) {
 	t.Run("error - wrong type", func(t *testing.T) {
 		qp := Range("test", "a", struct{}{})
 
-		_, err := qp.Condition(Key{})
+		_, err := qp.Condition(Key{}, nil)
 
 		assert.Error(t, err)
 	})
@@ -173,7 +173,18 @@ func TestPrefix(t *testing.T) {
 	})
 
 	t.Run("ok - condition true", func(t *testing.T) {
-		c, err := qp.Condition(Key("test something"))
+		c, err := qp.Condition(Key("test something"), nil)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.True(t, c)
+	})
+
+	t.Run("ok - condition true with transform", func(t *testing.T) {
+		qp := Prefix("test", "TEST")
+		c, err := qp.Condition(Key("test something"), ToLower)
 
 		if !assert.NoError(t, err) {
 			return
@@ -183,7 +194,7 @@ func TestPrefix(t *testing.T) {
 	})
 
 	t.Run("ok - condition false", func(t *testing.T) {
-		c, err := qp.Condition(Key("is not test"))
+		c, err := qp.Condition(Key("is not test"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -193,7 +204,7 @@ func TestPrefix(t *testing.T) {
 	})
 
 	t.Run("ok - key too short", func(t *testing.T) {
-		c, err := qp.Condition(Key("te"))
+		c, err := qp.Condition(Key("te"), nil)
 
 		if !assert.NoError(t, err) {
 			return
@@ -205,7 +216,7 @@ func TestPrefix(t *testing.T) {
 	t.Run("error - wrong type", func(t *testing.T) {
 		qp := Eq("test", struct{}{})
 
-		_, err := qp.Condition(Key{})
+		_, err := qp.Condition(Key{}, nil)
 
 		assert.Error(t, err)
 	})

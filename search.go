@@ -40,7 +40,8 @@ type QueryPart interface {
 	Seek() (Key, error)
 
 	// Condition returns true if given key falls within this condition.
-	Condition(key Key) (bool, error)
+	// The optional transform fn is applied to this query part before evaluation is done.
+	Condition(key Key, transform Transform) (bool, error)
 }
 
 // New creates a new query with an initial query part. Both begin and end are inclusive for the conditional check.
@@ -102,7 +103,16 @@ func (e eqPart) Seek() (Key, error) {
 	return toBytes(e.value)
 }
 
-func (e eqPart) Condition(key Key) (bool, error) {
+func (e eqPart) Condition(key Key, transform Transform) (bool, error) {
+	if transform != nil {
+		transformed := transform(e.value)
+		transformedBytes, err := toBytes(transformed)
+		if err != nil {
+			return false, err
+		}
+		return bytes.Compare(key, transformedBytes) == 0, nil
+	}
+
 	b, err := toBytes(e.value)
 	if err != nil {
 		return false, err
@@ -124,7 +134,7 @@ func (r rangePart) Seek() (Key, error) {
 	return toBytes(r.begin)
 }
 
-func (r rangePart) Condition(key Key) (bool, error) {
+func (r rangePart) Condition(key Key, _ Transform) (bool, error) {
 	b, err := toBytes(r.end)
 	if err != nil {
 		return false, err
@@ -145,18 +155,17 @@ func (p prefixPart) Seek() (Key, error) {
 	return toBytes(p.value)
 }
 
-func (p prefixPart) Condition(key Key) (bool, error) {
-	prefix, err := toBytes(p.value)
+func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
+	transformed := p.value
+	if transform != nil {
+		transformed = transform(p.value)
+	}
+
+	prefix, err := toBytes(transformed)
 	if err != nil {
 		return false, err
 	}
 
-	if len(prefix) > len(key) {
-		return false, nil
-	}
-
-	search := []byte(key[:len(prefix)])
-
-	return bytes.Compare(search, prefix) == 0, nil
+	return bytes.HasPrefix(key, prefix), nil
 }
 

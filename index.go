@@ -285,7 +285,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []Index
 	// value/search terms transformation (eg lowercase)
 	tokens := indexParts[0].Tokenize(seek)
 	for _, token := range tokens {
-		seek = indexParts[0].Transform(token).(Key)
+		seek = KeyOf(indexParts[0].Transform(token))
 		seek = ComposeKey(sKey, seek)
 		condition := true
 		for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
@@ -297,7 +297,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []Index
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
 
-			condition, err = cPart.Condition(newp)
+			condition, err = cPart.Condition(newp, indexParts[0].Transform)
 			if err != nil {
 				return err
 			}
