@@ -260,14 +260,6 @@ func TestIndex_IsMatch(t *testing.T) {
 
 		assert.Equal(t, 0.0, f)
 	})
-
-	t.Run("error - unknown query part", func(t *testing.T) {
-		f := i.IsMatch(
-			New(Eq("key", "value")).
-				And(Eq("key3", "value")))
-
-		assert.Equal(t, 0.0, f)
-	})
 }
 
 func TestIndex_Find(t *testing.T) {

@@ -210,6 +210,51 @@ func TestCollection_Find(t *testing.T) {
 		assert.Len(t, docs, 1)
 	})
 
+	t.Run("ok - with ResultScan", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value")).And(Eq("non_indexed", "value"))
+
+		docs, err := c.Find(q)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, docs, 1)
+	})
+
+	t.Run("ok - with ResultScan and range query", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value")).And(Range("non_indexed", "v", "value1"))
+
+		docs, err := c.Find(q)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, docs, 1)
+	})
+
+	t.Run("ok - with ResultScan, range query not found", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value")).And(Range("non_indexed", "value1", "value2"))
+
+		docs, err := c.Find(q)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, docs, 0)
+	})
+
 	t.Run("ok - no docs", func(t *testing.T) {
 		db := testDB(t)
 		c := createCollection(db)
@@ -304,7 +349,7 @@ func TestCollection_Reference(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "0fa7f893d6615e0d30963dbf21f30e4f0571a091f96e3d2ecd4e6d1e5a595039", ref.EncodeToString())
+		assert.Equal(t, "6168e799a8253de0e701be24e03d619429a468a4cb037c196baa2ddee4e93500", ref.EncodeToString())
 	})
 }
 

@@ -146,10 +146,18 @@ func TestRange(t *testing.T) {
 		assert.False(t, c)
 	})
 
-	t.Run("error - wrong type", func(t *testing.T) {
+	t.Run("error - wrong end type", func(t *testing.T) {
 		qp := Range("test", "a", struct{}{})
 
-		_, err := qp.Condition(Key{}, nil)
+		_, err := qp.Condition(Key("a"), nil)
+
+		assert.Error(t, err)
+	})
+
+	t.Run("error - wrong begin type", func(t *testing.T) {
+		qp := Range("test", struct{}{}, "a")
+
+		_, err := qp.Condition(Key("a"), nil)
 
 		assert.Error(t, err)
 	})

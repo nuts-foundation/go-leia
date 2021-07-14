@@ -135,7 +135,17 @@ func (r rangePart) Seek() (Key, error) {
 }
 
 func (r rangePart) Condition(key Key, _ Transform) (bool, error) {
-	b, err := toBytes(r.end)
+	b, err := toBytes(r.begin)
+	if err != nil {
+		return false, err
+	}
+
+	// the key becomes before the start
+	if bytes.Compare(key, b) < 0 {
+		return false, nil
+	}
+
+	b, err = toBytes(r.end)
 	if err != nil {
 		return false, err
 	}

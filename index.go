@@ -48,6 +48,13 @@ type Index interface {
 
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
+
+	// Sort the query so its parts align with the index parts.
+	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
+	Sort(query Query, includeMissing bool) ([]QueryPart, error)
+
+	// Depth returns the number of indexed fields
+	Depth() int
 }
 
 // IteratorFn defines a function that is used as a callback when an Iterate query finds results. The function is called for each result entry.
@@ -86,6 +93,10 @@ func (i *index) Name() string {
 
 func (i *index) BucketName() []byte {
 	return []byte(i.Name())
+}
+
+func (i *index) Depth() int {
+	return len(i.indexParts)
 }
 
 func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
@@ -214,7 +225,7 @@ func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 func (i *index) IsMatch(query Query) float64 {
 	hitcount := 0
 
-	parts, err := i.sort(query)
+	parts, err := i.Sort(query, false)
 	if err != nil {
 		return 0.0
 	}
@@ -235,25 +246,32 @@ outer:
 	return float64(hitcount) / float64(len(i.indexParts))
 }
 
-func (i *index) sort(query Query) ([]QueryPart, error) {
+func (i *index) Sort(query Query, includeMissing bool) ([]QueryPart, error) {
 	var sorted = make([]QueryPart, len(query.Parts()))
-
+	var missing = make([]QueryPart, 0)
 	hits := 0
+
+outer:
 	for _, qp := range query.Parts() {
 		for j, ip := range i.indexParts {
 			if ip.Name() == qp.Name() {
 				if j >= len(sorted) {
 					return nil, errors.New("invalid query part")
 				}
-				sorted[j] = qp
+				sorted[hits] = qp
 				hits++
+				continue outer
 			}
 		}
+		missing = append(missing, qp)
 	}
 
-	if hits < len(query.Parts()) {
-		// this could have been a typo somewhere. If not caught it'll result in a lot of results when it shouldn't
-		return nil, errors.New("unknown query part")
+	if includeMissing {
+		for i, qp := range missing {
+			sorted[hits+i] = qp
+		}
+	} else {
+		sorted = sorted[:hits]
 	}
 
 	return sorted, nil
@@ -267,25 +285,44 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error 
 		return err
 	}
 
-	// sort the parts of the Query to conform to the index key building order
-	sortedQueryParts, err := i.sort(query)
+	// Sort the parts of the Query to conform to the index key building order
+	sortedQueryParts, err := i.Sort(query, false)
 	if err != nil {
 		return err
 	}
 
-	return findR(cBucket.Cursor(), Key{}, sortedQueryParts, i.indexParts, fn)
+	// extract tokenizer and transform to here
+	matchers := make([]matcher, len(sortedQueryParts))
+	for j, cPart := range sortedQueryParts {
+		terms := make([]Key, 0)
+		seek, err := cPart.Seek()
+		if err != nil {
+			return err
+		}
+		for _, token := range i.indexParts[j].Tokenize(seek) {
+			seek = KeyOf(i.indexParts[j].Transform(token))
+			terms= append(terms, seek)
+		}
+		matchers[j] = matcher{
+			queryPart: cPart,
+			terms:     terms,
+			transform: i.indexParts[j].Transform,
+		}
+	}
+
+	return findR(cBucket.Cursor(), Key{}, matchers, fn)
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []IndexPart, fn IteratorFn) error {
-	cPart := parts[0]
-	seek, err := cPart.Seek()
-	if err != nil {
-		return err
-	}
-	// value/search terms transformation (eg lowercase)
-	tokens := indexParts[0].Tokenize(seek)
-	for _, token := range tokens {
-		seek = KeyOf(indexParts[0].Transform(token))
+type matcher struct {
+	queryPart QueryPart
+	terms     []Key
+	transform Transform
+}
+
+func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn IteratorFn) error {
+	var err error
+	cPart := matchers[0].queryPart
+	for _, seek := range matchers[0].terms {
 		seek = ComposeKey(sKey, seek)
 		condition := true
 		for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
@@ -297,14 +334,14 @@ func findR(cursor *bbolt.Cursor, sKey Key, parts []QueryPart, indexParts []Index
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
 
-			condition, err = cPart.Condition(newp, indexParts[0].Transform)
+			condition, err = cPart.Condition(newp, matchers[0].transform)
 			if err != nil {
 				return err
 			}
 			if condition {
-				if len(parts) > 1 {
+				if len(matchers) > 1 {
 					nKey := ComposeKey(sKey, newp)
-					err = findR(cursor, nKey, parts[1:], indexParts[1:], fn)
+					err = findR(cursor, nKey, matchers[1:], fn)
 				} else {
 					// value found call iterator function
 					err = fn(cKey, entry)

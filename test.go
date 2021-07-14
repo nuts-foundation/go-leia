@@ -43,7 +43,8 @@ var jsonExample = `
 				"parts": 0.0
 			}
 		]
-	}
+	},
+	"non_indexed": "value"
 }
 `
 

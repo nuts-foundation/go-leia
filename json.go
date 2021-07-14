@@ -26,6 +26,9 @@ import (
 	errors2 "github.com/pkg/errors"
 )
 
+// NewJSONIndexPart creates a new JSONIndexPart
+// leave the name empty to use the json path as name.
+// the name is to be used as query key when searching
 func NewJSONIndexPart(name string, jsonPath string, tokenizer Tokenizer, transformer Transform) IndexPart {
 	return jsonIndexPart{
 		name:        name,
@@ -47,6 +50,9 @@ func (j jsonIndexPart) pathParts() []string {
 }
 
 func (j jsonIndexPart) Name() string {
+	if strings.TrimSpace(j.name) == "" {
+		return j.jsonPath
+	}
 	return j.name
 }
 
