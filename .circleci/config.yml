@@ -26,18 +26,18 @@ jobs:
           command: |
             cat c_raw.out | grep -v generated | grep -v mock > c.out
 
-          # Run coverage report for Code Climate
-          - run:
-              name: Setup Code Climate test-reporter
-              command: |
-                mkdir -p tmp/
-                # download test reporter as a static binary
-                curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./tmp/cc-test-reporter
-                chmod +x ./tmp/cc-test-reporter
-                ./tmp/cc-test-reporter before-build
-          # Upload results
-          - run:
-              name: Upload coverage
-              command: |
-                ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/nuts-node
+      # Run coverage report for Code Climate
+      - run:
+          name: Setup Code Climate test-reporter
+          command: |
+            mkdir -p tmp/
+            # download test reporter as a static binary
+            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./tmp/cc-test-reporter
+            chmod +x ./tmp/cc-test-reporter
+            ./tmp/cc-test-reporter before-build
+      # Upload results
+      - run:
+          name: Upload coverage
+          command: |
+            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/nuts-node
 
