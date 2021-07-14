@@ -194,10 +194,18 @@ func (c *collection) isGlobal() bool {
 func (c *collection) Find(query Query) ([]Document, error) {
 	var docs []Document
 
+	// todo:
+	// construct a query plan
+	// IScan
+	// doc collector
+	// ResultScan
+
 	i := c.findIndex(query)
 	if i == nil {
 		return nil, ErrNoIndex
 	}
+
+	sortedQueryParts, err := i.Sort(query, true)
 
 	// the iteratorFn that collects results in a slice
 	refMap := map[string]bool{}
@@ -216,11 +224,12 @@ func (c *collection) Find(query Query) ([]Document, error) {
 		return nil
 	}
 
+	// do the IndexScan
 	if err := c.Iterate(query, refFn); err != nil {
 		return nil, err
 	}
 
-	err := c.db.View(func(tx *bbolt.Tx) (err error) {
+	err = c.db.View(func(tx *bbolt.Tx) (err error) {
 		docs = make([]Document, len(newRef))
 		for i, r := range newRef {
 			docs[i], err = c.globalCollection.Get(r)
@@ -230,6 +239,43 @@ func (c *collection) Find(query Query) ([]Document, error) {
 		}
 		return
 	})
+	if err != nil {
+		return nil, err
+	}
+
+	// do additional checks for referenced docs
+	// This will be the future ResultScan
+	if len(sortedQueryParts) > i.Depth() {
+		// pointer to in place slice replacement
+		j := 0
+		for _, doc := range docs {
+			match := true
+			outer:
+			for _, part := range sortedQueryParts[i.Depth():] {
+				// name must equal the json path for an unknown query part
+				ip := jsonIndexPart{jsonPath: part.Name()}
+				keys, err := ip.Keys(doc)
+				if err != nil {
+					return nil, err
+				}
+				for _, k := range keys {
+					m, err := part.Condition(k, nil)
+					if err != nil {
+						return nil, err
+					}
+					if m {
+						continue outer
+					}
+				}
+				match = false
+			}
+			if match {
+				docs[j] = doc
+				j++
+			}
+		}
+		docs = docs[:j]
+	}
 
 	return docs, err
 }
