@@ -63,14 +63,14 @@ type IteratorFn func(key []byte, value []byte) error
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
 // This index is only useful if at least n-1 parts are used in the query.
-func NewIndex(name string, parts ...IndexPart) Index {
+func NewIndex(name string, parts ...FieldIndexer) Index {
 	return &index{
 		name:       name,
 		indexParts: parts,
 	}
 }
 
-type IndexPart interface {
+type FieldIndexer interface {
 	// Name is used for matching against a Query
 	Name() string
 	// Keys returns the keys that matched this document. Multiple keys are combined by the index
@@ -84,7 +84,7 @@ type IndexPart interface {
 
 type index struct {
 	name       string
-	indexParts []IndexPart
+	indexParts []FieldIndexer
 }
 
 func (i *index) Name() string {
@@ -105,7 +105,7 @@ func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
 }
 
 // addDocumentR, like Add but recursive
-func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
+func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -137,7 +137,7 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Referen
 }
 
 // addDocumentR, like Add but recursive
-func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
+func removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 

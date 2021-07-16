@@ -28,10 +28,10 @@ import (
 
 func main() {
 	var compoundIndex = leia.NewIndex("compound",
-		leia.NewJSONIndexPart("id", "id", leia.WhiteSpaceTokenizer, leia.ToLower),
-		leia.NewJSONIndexPart("obj", "obj.key", leia.WhiteSpaceTokenizer, nil),
-		leia.NewJSONIndexPart("list", "list.key", leia.WhiteSpaceTokenizer, nil),
-		leia.NewJSONIndexPart("sublist", "list.subList", leia.WhiteSpaceTokenizer, nil),
+		leia.NewFieldIndexer("id", leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}, leia.TransformerOption{Transformer: leia.ToLower}),
+		leia.NewFieldIndexer("obj.key", leia.AliasOption{Alias: "obj"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
+		leia.NewFieldIndexer("list.#.key", leia.AliasOption{Alias: "list"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
+		leia.NewFieldIndexer("list.#.subList", leia.AliasOption{Alias: "sublist"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
 	)
 
 	s, err := leia.NewStore("./test/documents.db")
@@ -112,7 +112,7 @@ var jsonTemplate1 = `
 }
 `
 
-func genJson(i, j, k, l int) []byte {
+func genJson(i, j, k, l int) leia.Document {
 	id := fmt.Sprintf("ID%d", i)
 	key := fmt.Sprintf("OBJ.VAL%d", j)
 	key2 := fmt.Sprintf("LIST.VAL%d", k)
@@ -120,5 +120,5 @@ func genJson(i, j, k, l int) []byte {
 
 	gen := fmt.Sprintf(jsonTemplate1, id, key, key2, key3)
 
-	return []byte(gen)
+	return leia.DocumentFromString(gen)
 }

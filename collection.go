@@ -39,7 +39,7 @@ type Collection interface {
 	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
 	// Get returns a document by reference
-	Get(ref Reference) (Document, error)
+	Get(ref Reference) (*Document, error)
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
@@ -60,7 +60,7 @@ type ReferenceFunc func(doc Document) (Reference, error)
 
 // default for shasum docs
 func defaultReferenceCreator(doc Document) (Reference, error) {
-	s := sha256.Sum256(doc)
+	s := sha256.Sum256(doc.raw)
 	var b = make([]byte, 32)
 	copy(b, s[:])
 
@@ -100,7 +100,7 @@ func (c *collection) AddIndex(index Index) error {
 
 		cur := gBucket.Cursor()
 		for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-			index.Add(bucket, ref, doc)
+			index.Add(bucket, ref, Document{raw: doc})
 		}
 
 		return nil
@@ -169,7 +169,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 		}
 
 		if c.isGlobal() {
-			bucket.Put(ref, doc)
+			bucket.Put(ref, doc.raw)
 		}
 	}
 
@@ -229,15 +229,18 @@ func (c *collection) Find(query Query) ([]Document, error) {
 		return nil, err
 	}
 
-	err = c.db.View(func(tx *bbolt.Tx) (err error) {
+	err = c.db.View(func(tx *bbolt.Tx) error {
 		docs = make([]Document, len(newRef))
 		for i, r := range newRef {
-			docs[i], err = c.globalCollection.Get(r)
+			doc, err := c.globalCollection.Get(r)
 			if err != nil {
-				return
+				return err
+			}
+			if doc != nil {
+				docs[i] = *doc
 			}
 		}
-		return
+		return nil
 	})
 	if err != nil {
 		return nil, err
@@ -253,7 +256,7 @@ func (c *collection) Find(query Query) ([]Document, error) {
 			outer:
 			for _, part := range sortedQueryParts[i.Depth():] {
 				// name must equal the json path for an unknown query part
-				ip := jsonIndexPart{jsonPath: part.Name()}
+				ip := fieldIndexer{path: part.Name()}
 				keys, err := ip.Keys(doc)
 				if err != nil {
 					return nil, err
@@ -356,16 +359,23 @@ func (c *collection) findIndex(query Query) Index {
 }
 
 // Get returns the data for the given key or nil if not found
-func (c *collection) Get(key Reference) (Document, error) {
+func (c *collection) Get(key Reference) (*Document, error) {
 	var err error
 	var data []byte
 
 	err = c.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(GlobalCollection))
+		if bucket == nil {
+			return nil
+		}
 
 		data = bucket.Get(key)
 		return nil
 	})
 
-	return data, err
+	if data == nil {
+		return nil, nil
+	}
+
+	return &Document{raw: data}, err
 }

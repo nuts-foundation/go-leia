@@ -20,7 +20,6 @@
 package leia
 
 import (
-	"bytes"
 	"errors"
 	"testing"
 
@@ -28,7 +27,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-var exampleDoc = Document(jsonExample)
+var exampleDoc = Document{raw: []byte(jsonExample)}
 
 func TestCollection_AddIndex(t *testing.T) {
 	db := testDB(t)
@@ -100,7 +99,7 @@ func TestCollection_DropIndex(t *testing.T) {
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		i2 := NewIndex("other",
-			jsonIndexPart{name: "key", jsonPath: "path.part"},
+			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
 		)
 		c := createCollection(db)
 		c.Add([]Document{exampleDoc})
@@ -167,10 +166,9 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("ok - not added", func(t *testing.T) {
 		db := testDB(t)
-		doc := Document(jsonExample)
 		c := createCollection(db)
 
-		err := c.Delete(doc)
+		err := c.Delete(exampleDoc)
 		if !assert.NoError(t, err) {
 			return
 		}
@@ -180,12 +178,11 @@ func TestCollection_Delete(t *testing.T) {
 
 	t.Run("error - refMake returns error", func(t *testing.T) {
 		db := testDB(t)
-		doc := Document(jsonExample)
 		c := createCollection(db)
-		c.Add([]Document{doc})
+		c.Add([]Document{exampleDoc})
 
 		c.refMake = errorRef
-		err := c.Delete(doc)
+		err := c.Delete(exampleDoc)
 
 		assert.Error(t, err)
 	})
@@ -367,7 +364,7 @@ func TestCollection_Get(t *testing.T) {
 			return
 		}
 
-		assert.True(t, bytes.Compare(exampleDoc, d) == 0)
+		assert.Equal(t, exampleDoc, *d)
 	})
 
 	t.Run("error - not found", func(t *testing.T) {
@@ -385,7 +382,7 @@ func TestCollection_Get(t *testing.T) {
 
 func testIndex(t *testing.T) Index {
 	return NewIndex(t.Name(),
-		jsonIndexPart{name: "key", jsonPath: "path.part"},
+		NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
 	)
 }
 

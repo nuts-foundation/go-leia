@@ -41,7 +41,7 @@ func (t testIndexPart) Name() string {
 }
 
 func (t testIndexPart) Keys(document Document) ([]Key, error) {
-	words := t.tokenizer(string(document))
+	words := t.tokenizer(string(document.raw))
 	keys := make([]Key, len(words))
 	for i, w := range words {
 		transformed := t.Transform(w)
@@ -89,7 +89,7 @@ func TestIndex_Add(t *testing.T) {
 		key := []byte("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, doc)
+			return i.Add(bucket, ref, Document{raw:doc})
 		})
 
 		assert.NoError(t, err)
@@ -104,7 +104,7 @@ func TestIndex_Add(t *testing.T) {
 		key2 := []byte("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, doc)
+			return i.Add(bucket, ref, Document{raw:doc})
 		})
 
 		assert.NoError(t, err)
@@ -125,7 +125,7 @@ func TestIndex_Iterate(t *testing.T) {
 		key := []byte("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, doc)
+			return i.Add(bucket, ref, Document{raw:doc})
 		})
 
 		if !assert.NoError(t, err) {
@@ -154,7 +154,7 @@ func TestIndex_Iterate(t *testing.T) {
 		key2 := []byte("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, doc)
+			return i.Add(bucket, ref, Document{raw:doc})
 		})
 
 		if !assert.NoError(t, err) {
