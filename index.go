@@ -53,6 +53,9 @@ type Index interface {
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
 	Sort(query Query, includeMissing bool) ([]QueryPart, error)
 
+	// QueryPartsOutsideIndex selects the queryParts that are not used by the index.
+	QueryPartsOutsideIndex(query Query) ([]QueryPart, error)
+
 	// Depth returns the number of indexed fields
 	Depth() int
 }
@@ -276,6 +279,30 @@ outer:
 	}
 
 	return sorted, nil
+}
+
+func (i *index) QueryPartsOutsideIndex(query Query) ([]QueryPart, error) {
+	hits := 0
+	parts, err := i.Sort(query, true)
+	if err != nil {
+		return nil, err
+	}
+
+outer:
+	for _, qp := range parts {
+		for _, ip := range i.indexParts {
+			if ip.Name() == qp.Name() {
+				hits++
+				continue outer
+			}
+		}
+	}
+
+	if hits == len(parts) {
+		return []QueryPart{}, nil
+	}
+
+	return parts[hits:], nil
 }
 
 func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error {

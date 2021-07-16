@@ -287,15 +287,6 @@ func TestCollection_Find(t *testing.T) {
 
 		assert.Error(t, err)
 	})
-
-	t.Run("error - no index", func(t *testing.T) {
-		c := createCollection(db)
-		q := New(Eq("key", "value"))
-
-		_, err := c.Find(q)
-
-		assert.Error(t, err)
-	})
 }
 
 

@@ -101,6 +101,17 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+
+	// combination of an index and additional constraints
+	query4 := leia.New(leia.Range("id", "ID16", "ID17")).
+		And(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
+		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
+	t = time.Now()
+	j, err = c.Find(query4)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
 }
 
 // test data

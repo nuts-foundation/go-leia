@@ -81,7 +81,7 @@ type resultScanQueryPlan struct {
 }
 
 func (i resultScanQueryPlan) Execute(walker DocWalker) error {
-	sortedQueryParts, err := i.index.Sort(i.query, true)
+	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
 	if err != nil {
 		return err
 	}
@@ -100,10 +100,8 @@ func (i resultScanQueryPlan) Execute(walker DocWalker) error {
 			if doc != nil {
 				match := true
 				outer:
-				for _, part := range sortedQueryParts[i.index.Depth():] {
-					// name must equal the json path for an unknown query part
-					ip := fieldIndexer{path: part.Name()}
-					keys, err := ip.Keys(*doc)
+				for _, part := range queryParts {
+					keys, err := doc.KeysAtPath(part.Name())
 					if err != nil {
 						return err
 					}
