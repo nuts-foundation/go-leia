@@ -21,7 +21,11 @@ package leia
 
 import (
 	"bytes"
+	"errors"
 )
+
+// ErrNoQuery is returned when an empty query is given
+var ErrNoQuery = errors.New("no query given")
 
 type Query interface {
 	// And adds a condition to query on

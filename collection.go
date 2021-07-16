@@ -29,6 +29,10 @@ import (
 // ErrNoIndex is returned when no index is found to query against
 var ErrNoIndex = errors.New("no index found")
 
+// DocWalker defines a function that is used as a callback for matching documents.
+// The key will be the document Reference (hash) and the value will be the raw document bytes
+type DocWalker func(key []byte, value []byte) error
+
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
@@ -47,9 +51,11 @@ type Collection interface {
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) (Reference, error)
-	// Iterate over matching key/value pairs.
+	// Iterate over documents that match the given query
+	Iterate(query Query, walker DocWalker) error
+	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
-	Iterate(query Query, fn IteratorFn) error
+	IndexIterate(query Query, fn IteratorFn) error
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -192,110 +198,34 @@ func (c *collection) isGlobal() bool {
 }
 
 func (c *collection) Find(query Query) ([]Document, error) {
-	var docs []Document
-
-	// todo:
-	// construct a query plan
-	// IScan
-	// doc collector
-	// ResultScan
-
-	i := c.findIndex(query)
-	if i == nil {
-		return nil, ErrNoIndex
-	}
-
-	sortedQueryParts, err := i.Sort(query, true)
-
-	// the iteratorFn that collects results in a slice
-	refMap := map[string]bool{}
-	var newRef = make([]Reference, 0)
-	var refFn = func(key []byte, value []byte) error {
-		refs, err := entryToSlice(value)
-		if err != nil {
-			return err
-		}
-		for _, r := range refs {
-			if _, b := refMap[r.EncodeToString()]; !b {
-				refMap[r.EncodeToString()] = true
-				newRef = append(newRef, r)
-			}
-		}
+	docs := make([]Document, 0)
+	walker := func(key []byte, value []byte) error {
+		docs = append(docs, DocumentFromBytes(value))
 		return nil
 	}
 
-	// do the IndexScan
-	if err := c.Iterate(query, refFn); err != nil {
+	if err := c.Iterate(query, walker); err != nil {
 		return nil, err
 	}
 
-	err = c.db.View(func(tx *bbolt.Tx) error {
-		docs = make([]Document, len(newRef))
-		for i, r := range newRef {
-			doc, err := c.globalCollection.Get(r)
-			if err != nil {
-				return err
-			}
-			if doc != nil {
-				docs[i] = *doc
-			}
-		}
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// do additional checks for referenced docs
-	// This will be the future ResultScan
-	if len(sortedQueryParts) > i.Depth() {
-		// pointer to in place slice replacement
-		j := 0
-		for _, doc := range docs {
-			match := true
-			outer:
-			for _, part := range sortedQueryParts[i.Depth():] {
-				// name must equal the json path for an unknown query part
-				ip := fieldIndexer{path: part.Name()}
-				keys, err := ip.Keys(doc)
-				if err != nil {
-					return nil, err
-				}
-				for _, k := range keys {
-					m, err := part.Condition(k, nil)
-					if err != nil {
-						return nil, err
-					}
-					if m {
-						continue outer
-					}
-				}
-				match = false
-			}
-			if match {
-				docs[j] = doc
-				j++
-			}
-		}
-		docs = docs[:j]
-	}
-
-	return docs, err
+	return docs, nil
 }
 
-func (c *collection) Iterate(query Query, fn IteratorFn) error {
-	i := c.findIndex(query)
-
-	if i == nil {
-		return ErrNoIndex
+func (c *collection) Iterate(query Query, fn DocWalker) error {
+	plan, err := c.queryPlan(query)
+	if err != nil {
+		return err
+	}
+	if err = plan.Execute(fn); err != nil {
+		return err
 	}
 
-	return c.db.View(func(tx *bbolt.Tx) error {
-		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(c.Name))
+	return nil
+}
 
-		return i.Iterate(iBucket, query, fn)
-	})
+// IterateIndex: todo indexScanQueryPlan: uses the values from the index not the docs!
+func (c *collection) IndexIterate(query Query, fn IteratorFn) error {
+	return nil
 }
 
 // Delete a document from the store, this also removes the entries from indices
@@ -333,6 +263,44 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	}
 
 	return nil
+}
+
+func (c *collection) queryPlan(query Query) (queryPlan, error) {
+	if query == nil {
+		return nil, ErrNoQuery
+	}
+
+	index := c.findIndex(query)
+
+	if index == nil {
+		matchers := make([]matcher, len(query.Parts()))
+		for i, qp := range query.Parts() {
+			seekValue, err := qp.Seek()
+			if err != nil {
+				return nil, err
+			}
+			matchers[i] = matcher{
+				queryPart: qp,
+				terms:     []Key{seekValue},
+				transform: nil,
+			}
+		}
+
+		return fullTableScanQueryPlan{
+			defaultQueryPlan: defaultQueryPlan {
+				collection: c,
+			},
+			matchers: matchers,
+		}, nil
+	}
+
+	return resultScanQueryPlan{
+		defaultQueryPlan: defaultQueryPlan {
+			collection: c,
+		},
+		index: index,
+		query: query,
+	}, nil
 }
 
 // find a matching index.

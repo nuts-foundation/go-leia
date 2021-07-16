@@ -19,13 +19,6 @@
 
 package leia
 
-import (
-	"errors"
-	"fmt"
-
-	"github.com/tidwall/gjson"
-)
-
 type IndexOption interface{}
 
 type TransformerOption struct {
@@ -94,13 +87,8 @@ func (j fieldIndexer) Name() string {
 }
 
 func (j fieldIndexer) Keys(document Document) ([]Key, error) {
-	if !gjson.ValidBytes(document.raw) {
-		return nil, errors.New("invalid json")
-	}
-	result := gjson.GetBytes(document.raw, j.path)
-
-	// first get the raw values fro mthe query path
-	rawKeys, err := valuesFromResult(result)
+	// first get the raw values from the query path
+	rawKeys, err := document.ValuesAtPath(j.path)
 	if err != nil {
 		return nil, err
 	}
@@ -136,30 +124,6 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 	}
 
 	return keys, nil
-}
-
-func valuesFromResult(result gjson.Result) ([]interface{}, error) {
-	switch result.Type {
-	case gjson.String:
-		return []interface{}{result.Str}, nil
-	case gjson.Number:
-		return []interface{}{result.Num}, nil
-	case gjson.Null:
-		return []interface{}{}, nil
-	default:
-		if result.IsArray() {
-			keys := make([]interface{}, 0)
-			for _, subResult := range result.Array() {
-				subKeys, err := valuesFromResult(subResult)
-				if err != nil {
-					return nil, err
-				}
-				keys = append(keys, subKeys...)
-			}
-			return keys, nil
-		}
-	}
-	return nil, fmt.Errorf("type at path not supported for indexing: %s", result.String())
 }
 
 func (j fieldIndexer) Tokenize(value interface{}) []interface{} {

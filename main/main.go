@@ -66,6 +66,7 @@ func main() {
 	//
 	//fmt.Println("added docs")
 
+	// only matches when toLower is working properly
 	query := leia.New(leia.Eq("id", "id16")).
 		And(leia.Eq("obj", "OBJ.VAL16")).
 		And(leia.Eq("list", "LIST.VAL16")).
@@ -78,6 +79,7 @@ func main() {
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
 
+	// only matches when range queries are working properly
 	query2 := leia.New(leia.Range("id", "ID16", "ID17")).
 		And(leia.Range("obj", "OBJ.VAL16", "OBJ.VAL17")).
 		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
@@ -89,10 +91,16 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
-	//fmt.Println(j[0])
 
-	//j, err = s.Find(soObj)
-	//println(err.Error())
+	// only matches when full table scan is working properly
+	query3 := leia.New(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
+		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
+	t = time.Now()
+	j, err = c.Find(query3)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
 }
 
 // test data

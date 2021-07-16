@@ -57,8 +57,9 @@ type Index interface {
 	Depth() int
 }
 
-// IteratorFn defines a function that is used as a callback when an Iterate query finds results. The function is called for each result entry.
-type IteratorFn func(key []byte, value []byte) error
+// IteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
+// the key will be the indexed value and the value will contain an Entry
+type IteratorFn DocWalker
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
