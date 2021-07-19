@@ -31,9 +31,9 @@ import (
 // the test based index returns each word as a key.
 
 type testIndexPart struct {
-	name string
+	name        string
 	transformer Transform
-	tokenizer Tokenizer
+	tokenizer   Tokenizer
 }
 
 func (t testIndexPart) Name() string {
@@ -89,7 +89,7 @@ func TestIndex_Add(t *testing.T) {
 		key := []byte("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw:doc})
+			return i.Add(bucket, ref, Document{raw: doc})
 		})
 
 		assert.NoError(t, err)
@@ -104,7 +104,7 @@ func TestIndex_Add(t *testing.T) {
 		key2 := []byte("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw:doc})
+			return i.Add(bucket, ref, Document{raw: doc})
 		})
 
 		assert.NoError(t, err)
@@ -125,7 +125,7 @@ func TestIndex_Iterate(t *testing.T) {
 		key := []byte("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw:doc})
+			return i.Add(bucket, ref, Document{raw: doc})
 		})
 
 		if !assert.NoError(t, err) {
@@ -154,7 +154,7 @@ func TestIndex_Iterate(t *testing.T) {
 		key2 := []byte("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw:doc})
+			return i.Add(bucket, ref, Document{raw: doc})
 		})
 
 		if !assert.NoError(t, err) {

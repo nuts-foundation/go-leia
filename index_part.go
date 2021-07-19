@@ -41,14 +41,14 @@ type AliasOption struct {
 // the name is to be used as query key when searching
 func NewFieldIndexer(jsonPath string, options ...IndexOption) FieldIndexer {
 	return fieldIndexer{
-		path:        jsonPath,
-		options:	 options,
+		path:    jsonPath,
+		options: options,
 	}
 }
 
 type fieldIndexer struct {
-	path        string
-	options     []IndexOption
+	path    string
+	options []IndexOption
 }
 
 func (j fieldIndexer) getAlias() *string {
@@ -117,7 +117,7 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 	// to Keys
 	keys := make([]Key, len(transformed))
 	for i, t := range transformed {
-		keys[i] , err = toBytes(t)
+		keys[i], err = toBytes(t)
 		if err != nil {
 			return nil, err
 		}

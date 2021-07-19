@@ -191,4 +191,3 @@ func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
 
 	return bytes.HasPrefix(key, prefix), nil
 }
-

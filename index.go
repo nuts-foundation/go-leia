@@ -329,7 +329,7 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 		}
 		for _, token := range i.indexParts[j].Tokenize(seek) {
 			seek = KeyOf(i.indexParts[j].Transform(token))
-			terms= append(terms, seek)
+			terms = append(terms, seek)
 		}
 		matchers[j] = matcher{
 			queryPart: cPart,

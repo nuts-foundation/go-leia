@@ -84,6 +84,7 @@ func testDirectory(t *testing.T) string {
 }
 
 type testFunc func(bucket *bbolt.Bucket) error
+
 func withinBucket(t *testing.T, db *bbolt.DB, fn testFunc) error {
 	return db.Update(func(tx *bbolt.Tx) error {
 		bucket := testBucket(t, tx)

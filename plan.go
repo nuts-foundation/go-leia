@@ -35,7 +35,7 @@ type defaultQueryPlan struct {
 
 type fullTableScanQueryPlan struct {
 	defaultQueryPlan
-	queryParts   []QueryPart
+	queryParts []QueryPart
 }
 
 func (f fullTableScanQueryPlan) Execute(walker DocWalker) error {
@@ -144,7 +144,7 @@ func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) R
 func resultScanner(queryParts []QueryPart, walker DocWalker) documentScanFn {
 	return func(ref []byte, docBytes []byte) error {
 		doc := DocumentFromBytes(docBytes)
-		outer:
+	outer:
 		for _, part := range queryParts {
 			keys, err := doc.KeysAtPath(part.Name())
 			if err != nil {

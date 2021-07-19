@@ -33,7 +33,7 @@ type Document struct {
 
 // DocumentFromString creates a Document from a JSON string
 func DocumentFromString(json string) Document {
-	return Document{raw:[]byte(json)}
+	return Document{raw: []byte(json)}
 }
 
 // DocumentFromBytes creates a Document from a JSON string

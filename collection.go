@@ -231,7 +231,7 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	}
 
 	plan := indexScanQueryPlan{
-		defaultQueryPlan: defaultQueryPlan {
+		defaultQueryPlan: defaultQueryPlan{
 			collection: c,
 		},
 		index: index,
@@ -287,7 +287,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 
 	if index == nil {
 		return fullTableScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan {
+			defaultQueryPlan: defaultQueryPlan{
 				collection: c,
 			},
 			queryParts: query.Parts(),
@@ -295,7 +295,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 	}
 
 	return resultScanQueryPlan{
-		defaultQueryPlan: defaultQueryPlan {
+		defaultQueryPlan: defaultQueryPlan{
 			collection: c,
 		},
 		index: index,
