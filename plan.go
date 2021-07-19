@@ -179,7 +179,9 @@ func indexEntryExpander(refScan ReferenceScanFn) iteratorFn {
 		for _, r := range refs {
 			if _, b := refMap[r.EncodeToString()]; !b {
 				refMap[r.EncodeToString()] = true
-				refScan(key, r)
+				if err := refScan(key, r); err != nil {
+					return err
+				}
 			}
 		}
 		return nil
