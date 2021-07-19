@@ -25,20 +25,44 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// queryPlan is the interface for all query plans
 type queryPlan interface {
-	Execute(walker DocWalker) error
+	// execute the plan call the DocWalker for each matching document
+	execute(walker DocWalker) error
 }
 
+// defaultQueryPlan contains elements common for each query plan
 type defaultQueryPlan struct {
 	collection *collection
 }
 
+// fullTableScanQueryPlan is a query plan which scans all documents
 type fullTableScanQueryPlan struct {
 	defaultQueryPlan
 	queryParts []QueryPart
 }
 
-func (f fullTableScanQueryPlan) Execute(walker DocWalker) error {
+// resultScanQueryPlan is a query plan that uses an index and filters the results with the remaining query params
+type resultScanQueryPlan struct {
+	defaultQueryPlan
+	index Index
+	query Query
+}
+
+// indexScanQueryPlan is a special query plan that only loops over the index keys and document references
+type indexScanQueryPlan struct {
+	defaultQueryPlan
+	index Index
+	query Query
+}
+
+// ReferenceScanFn is a function type which is called with an index key and a document Reference as value
+type ReferenceScanFn func(key []byte, value []byte) error
+
+// documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
+type documentScanFn func(key []byte, value []byte) error
+
+func (f fullTableScanQueryPlan) execute(walker DocWalker) error {
 	return f.collection.globalCollection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(GlobalCollection))
 		if bucket == nil {
@@ -58,13 +82,7 @@ func (f fullTableScanQueryPlan) Execute(walker DocWalker) error {
 	})
 }
 
-type indexScanQueryPlan struct {
-	defaultQueryPlan
-	index Index
-	query Query
-}
-
-func (i indexScanQueryPlan) Execute(walker ReferenceScanFn) error {
+func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
 	if err != nil {
 		return err
@@ -77,6 +95,9 @@ func (i indexScanQueryPlan) Execute(walker ReferenceScanFn) error {
 	return i.collection.db.View(func(tx *bbolt.Tx) error {
 		// nil is not possible since adding an index creates the iBucket
 		iBucket := tx.Bucket([]byte(i.collection.Name))
+		if iBucket == nil { // nothing added yet
+			return nil
+		}
 
 		// expander expands the index entry to the actual document
 		expander := indexEntryExpander(walker)
@@ -85,13 +106,7 @@ func (i indexScanQueryPlan) Execute(walker ReferenceScanFn) error {
 	})
 }
 
-type resultScanQueryPlan struct {
-	defaultQueryPlan
-	index Index
-	query Query
-}
-
-func (i resultScanQueryPlan) Execute(walker DocWalker) error {
+func (i resultScanQueryPlan) execute(walker DocWalker) error {
 	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
 	if err != nil {
 		return err
@@ -120,12 +135,6 @@ func (i resultScanQueryPlan) Execute(walker DocWalker) error {
 		return i.index.Iterate(iBucket, i.query, expander)
 	})
 }
-
-// ReferenceScanFn is a function type which is called with an index key and a document Reference as value
-type ReferenceScanFn func(key []byte, value []byte) error
-
-// documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
-type documentScanFn func(key []byte, value []byte) error
 
 // documentFetcher creates a ReferenceScanFn which is called with a reference, fetches the document and calls the documentScanFn
 func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) ReferenceScanFn {

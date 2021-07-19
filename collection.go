@@ -216,7 +216,7 @@ func (c *collection) Iterate(query Query, fn DocWalker) error {
 	if err != nil {
 		return err
 	}
-	if err = plan.Execute(fn); err != nil {
+	if err = plan.execute(fn); err != nil {
 		return err
 	}
 
@@ -238,7 +238,7 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 		query: query,
 	}
 
-	return plan.Execute(fn)
+	return plan.execute(fn)
 }
 
 // Delete a document from the store, this also removes the entries from indices

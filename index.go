@@ -66,7 +66,6 @@ type iteratorFn DocWalker
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
-// This index is only useful if at least n-1 parts are used in the query.
 func NewIndex(name string, parts ...FieldIndexer) Index {
 	return &index{
 		name:       name,
