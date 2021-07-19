@@ -41,44 +41,6 @@ func DocumentFromBytes(json []byte) Document {
 	return Document{raw: json}
 }
 
-// String returns the document in string format
-func (d Document) String() string {
-	return string(d.raw)
-}
-
-// Comparable checks if the value at the given JSON path can be compared to a single value
-func (d Document) Comparable(path string) bool {
-	result := gjson.GetBytes(d.raw, path)
-
-	switch result.Type {
-	case gjson.String:
-		return true
-	case gjson.Number:
-		return true
-	default:
-		return false
-	}
-}
-
-// GetValues returns a gjson.Result for the given JSON path
-func (d Document) GetValues(pathQuery string) gjson.Result {
-	return gjson.GetBytes(d.raw, pathQuery)
-}
-
-// GetString returns the string value at the given JSON path
-func (d Document) GetString(pathQuery string) string {
-	result := gjson.GetBytes(d.raw, pathQuery)
-
-	return result.String()
-}
-
-// GetNumber returns a float64 of the number at the given JSON path
-func (d Document) GetNumber(pathQuery string) float64 {
-	result := gjson.GetBytes(d.raw, pathQuery)
-
-	return result.Float()
-}
-
 func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
 	if !gjson.ValidBytes(d.raw) {
 		return nil, errors.New("invalid json")

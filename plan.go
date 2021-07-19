@@ -31,48 +31,28 @@ type defaultQueryPlan struct {
 
 type fullTableScanQueryPlan struct {
 	defaultQueryPlan
-	matchers   []matcher
+	queryParts   []QueryPart
 }
 
 func (f fullTableScanQueryPlan) Execute(walker DocWalker) error {
 	return f.collection.globalCollection.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(f.collection.globalCollection.Name))
+		bucket := tx.Bucket([]byte(GlobalCollection))
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
 		}
 
+		scanner := resultScanner(f.queryParts, walker)
+
 		cursor := bucket.Cursor()
-		outer:
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
-			doc := Document{raw: bytes}
-			inner:
-			for _, m := range f.matchers {
-				keys, err := doc.KeysAtPath(m.queryPart.Name())
-				if err != nil {
-					return err
-				}
-				for _, key := range keys {
-					condition, err := m.queryPart.Condition(key, nil)
-					if err != nil {
-						return err
-					}
-					if condition {
-						// this matcher is successful. Continue with next matcher
-						continue inner
-					}
-				}
-				// no key matched for this mather, continue to next doc
-				continue outer
-			}
-			if err := walker(ref, bytes); err != nil {
+			if err := scanner(ref, bytes); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
 }
-// todo a selector: returns partials per doc
 
 type resultScanQueryPlan struct {
 	defaultQueryPlan
@@ -88,60 +68,89 @@ func (i resultScanQueryPlan) Execute(walker DocWalker) error {
 
 	// do the IndexScan
 	return i.collection.db.View(func(tx *bbolt.Tx) error {
+		globalBucket := tx.Bucket([]byte(GlobalCollection))
+		if globalBucket == nil {
+			// no bucket means no docs
+			return nil
+		}
+
 		// nil is not possible since adding an index creates the iBucket
 		iBucket := tx.Bucket([]byte(i.collection.Name))
 
-		// resultScan checks if the document conforms to the filters
-		resultScan := func(key []byte, ref []byte) error {
-			doc, err := i.collection.globalCollection.Get(ref)
-			if err != nil {
-				return err
-			}
-			if doc != nil {
-				match := true
-				outer:
-				for _, part := range queryParts {
-					keys, err := doc.KeysAtPath(part.Name())
-					if err != nil {
-						return err
-					}
-					for _, k := range keys {
-						m, err := part.Condition(k, nil)
-						if err != nil {
-							return err
-						}
-						if m {
-							continue outer
-						}
-					}
-					match = false
-				}
-				if match {
-					walker(ref, doc.raw)
-				}
-			}
-			return nil
-		}
+		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
+		resultScan := resultScanner(queryParts, walker)
 
-		// contains references that have already been processed
-		refMap := map[string]bool{}
+		// fetcher expands references to documents, for each document it calls the resultScan
+		fetcher := documentFetcher(globalBucket, resultScan)
 
-		// collector expands the index entry to the actual document
-		collector := func(key []byte, value []byte) error {
-			refs, err := entryToSlice(value)
-			if err != nil {
-				return err
-			}
-			for _, r := range refs {
-				if _, b := refMap[r.EncodeToString()]; !b {
-					refMap[r.EncodeToString()] = true
-					resultScan(key, r)
-				}
-			}
-			return nil
-		}
+		// expander expands the index entry to the actual document
+		expander := indexEntryExpander(fetcher)
 
-		return i.index.Iterate(iBucket, i.query, collector)
+		return i.index.Iterate(iBucket, i.query, expander)
 	})
 }
 
+// referenceScanFn is a function type which is called with an index key and a document Reference as value
+type referenceScanFn func(key []byte, value []byte) error
+
+// documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
+type documentScanFn func(key []byte, value []byte) error
+
+// documentFetcher creates a referenceScanFn which is called with a reference, fetches the document and calls the documentScanFn
+func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) referenceScanFn {
+	return func(key []byte, ref []byte) error {
+		docBytes := globalCollection.Get(ref)
+		if docBytes != nil {
+			return docWalker(ref, docBytes)
+		}
+		return nil
+	}
+
+}
+
+// resultScanner returns a resultScannerFn. For each call it will compare the document against the given queryParts.
+// If conditions are met, it'll call the DocWalker
+func resultScanner(queryParts []QueryPart, walker DocWalker) documentScanFn {
+	return func(ref []byte, docBytes []byte) error {
+		doc := DocumentFromBytes(docBytes)
+		outer:
+		for _, part := range queryParts {
+			keys, err := doc.KeysAtPath(part.Name())
+			if err != nil {
+				return err
+			}
+			for _, k := range keys {
+				m, err := part.Condition(k, nil)
+				if err != nil {
+					return err
+				}
+				if m {
+					continue outer
+				}
+			}
+			return nil
+		}
+		return walker(ref, doc.raw)
+	}
+}
+
+// indexEntryExpander creates a IteratorFn that expands an index Entry into multiple document references.
+// for each reference the referenceScanFn func is called.
+func indexEntryExpander(refScan referenceScanFn) IteratorFn {
+	// contains references that have already been processed
+	refMap := map[string]bool{}
+
+	return func(key []byte, value []byte) error {
+		refs, err := entryToSlice(value)
+		if err != nil {
+			return err
+		}
+		for _, r := range refs {
+			if _, b := refMap[r.EncodeToString()]; !b {
+				refMap[r.EncodeToString()] = true
+				refScan(key, r)
+			}
+		}
+		return nil
+	}
+}

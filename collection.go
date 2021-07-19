@@ -273,24 +273,11 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 	index := c.findIndex(query)
 
 	if index == nil {
-		matchers := make([]matcher, len(query.Parts()))
-		for i, qp := range query.Parts() {
-			seekValue, err := qp.Seek()
-			if err != nil {
-				return nil, err
-			}
-			matchers[i] = matcher{
-				queryPart: qp,
-				terms:     []Key{seekValue},
-				transform: nil,
-			}
-		}
-
 		return fullTableScanQueryPlan{
 			defaultQueryPlan: defaultQueryPlan {
 				collection: c,
 			},
-			matchers: matchers,
+			queryParts: query.Parts(),
 		}, nil
 	}
 

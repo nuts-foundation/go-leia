@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewDocument(t *testing.T) {
+func TestNewReference(t *testing.T) {
 	d := NewReference([]byte("hello"))
 	h := hex.EncodeToString(d)
 

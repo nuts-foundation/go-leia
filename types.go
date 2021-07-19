@@ -29,12 +29,6 @@ import (
 
 const boltDBFileMode = 0600
 const KeyDelimiter = 0x10
-const collectionBucket = "_leia"
-
-// Reference returns the reference of the document
-func (d Document) Reference() Reference {
-	return NewReference(d.raw)
-}
 
 // NewReference calculates the sha256 of a piece of data and returns it as reference type
 func NewReference(data []byte) Reference {
