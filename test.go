@@ -162,10 +162,20 @@ func assertIndexSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
 
 // assertSize checks a bucket size
 func assertSize(t *testing.T, db *bbolt.DB, bucketName string, size int) bool {
-	err := db.Update(func(tx *bbolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte(bucketName))
-		if err != nil {
-			panic(err)
+	err := db.View(func(tx *bbolt.Tx) error {
+		b := tx.Bucket([]byte("test"))
+		if b == nil {
+			if size == 0 {
+				return nil
+			}
+			panic("missing bucket")
+		}
+		b = b.Bucket([]byte(bucketName))
+		if b == nil {
+			if size == 0 {
+				return nil
+			}
+			panic("missing bucket")
 		}
 		assert.Equal(t, size, b.Stats().KeyN)
 		return nil

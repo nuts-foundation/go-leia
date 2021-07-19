@@ -33,6 +33,9 @@ var ErrNoIndex = errors.New("no index found")
 // The key will be the document Reference (hash) and the value will be the raw document bytes
 type DocWalker func(key []byte, value []byte) error
 
+// documentCollection is the bucket that stores all the documents for a collection
+const documentCollection = "_documents"
+
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
@@ -77,7 +80,6 @@ func defaultReferenceCreator(doc Document) (Reference, error) {
 type collection struct {
 	Name             string `json:"name"`
 	db               *bbolt.DB
-	globalCollection *collection
 	IndexList        []Index `json:"indices"`
 	refMake          ReferenceFunc
 }
@@ -100,7 +102,7 @@ func (c *collection) AddIndex(index Index) error {
 			return nil
 		}
 
-		gBucket, err := tx.CreateBucketIfNotExists([]byte(GlobalCollection))
+		gBucket, err := bucket.CreateBucketIfNotExists([]byte(documentCollection))
 		if err != nil {
 			return err
 		}
@@ -160,6 +162,11 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 		return err
 	}
 
+	docBucket, err := bucket.CreateBucketIfNotExists([]byte(documentCollection))
+	if err != nil {
+		return err
+	}
+
 	for _, doc := range jsonSet {
 		ref, err := c.refMake(doc)
 		if err != nil {
@@ -175,27 +182,13 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 			}
 		}
 
-		if c.isGlobal() {
-			bucket.Put(ref, doc.raw)
-		}
-	}
-
-	if c.isNotGlobal() {
-		err = c.globalCollection.add(tx, jsonSet)
+		err = docBucket.Put(ref, doc.raw)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
-}
-
-func (c *collection) isNotGlobal() bool {
-	return c != c.globalCollection && c.globalCollection != nil
-}
-
-func (c *collection) isGlobal() bool {
-	return c.Name == GlobalCollection
 }
 
 func (c *collection) Find(query Query) ([]Document, error) {
@@ -251,8 +244,8 @@ func (c *collection) Delete(doc Document) error {
 }
 
 func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	iBucket := tx.Bucket([]byte(c.Name))
-	if iBucket == nil {
+	bucket := tx.Bucket([]byte(c.Name))
+	if bucket == nil {
 		return nil
 	}
 
@@ -261,16 +254,15 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 		return err
 	}
 
-	if c.isNotGlobal() {
-		err = c.globalCollection.delete(tx, doc)
-		if err != nil {
+	docBucket := c.documentBucket(tx)
+	err = docBucket.Delete(ref)
+	if err != nil {
 			return err
 		}
-	}
 
 	// indices
 	for _, i := range c.IndexList {
-		err = i.Delete(iBucket, ref, doc)
+		err = i.Delete(bucket, ref, doc)
 		if err != nil {
 			return err
 		}
@@ -333,7 +325,7 @@ func (c *collection) Get(key Reference) (*Document, error) {
 	var data []byte
 
 	err = c.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(GlobalCollection))
+		bucket := c.documentBucket(tx)
 		if bucket == nil {
 			return nil
 		}
@@ -347,4 +339,12 @@ func (c *collection) Get(key Reference) (*Document, error) {
 	}
 
 	return &Document{raw: data}, err
+}
+
+func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	bucket := tx.Bucket([]byte(c.Name))
+	if bucket == nil {
+		return nil
+	}
+	return bucket.Bucket([]byte(documentCollection))
 }

@@ -64,7 +64,7 @@ func TestCollection_AddIndex(t *testing.T) {
 		assert.NoError(t, err)
 
 		assertIndexSize(t, db, i, 1)
-		assertSize(t, db, GlobalCollection, 1)
+		assertSize(t, db, documentCollection, 1)
 	})
 
 	t.Run("ok - adding existing index does nothing", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestCollection_Add(t *testing.T) {
 			return
 		}
 
-		assertSize(t, db, GlobalCollection, 1)
+		assertSize(t, db, documentCollection, 1)
 	})
 
 	t.Run("error - refmake fails", func(t *testing.T) {
@@ -161,7 +161,7 @@ func TestCollection_Delete(t *testing.T) {
 
 		assertIndexSize(t, db, i, 0)
 		// the index sub-bucket counts as 1
-		assertSize(t, db, c.Name, 1)
+		assertSize(t, db, documentCollection, 0)
 	})
 
 	t.Run("ok - not added", func(t *testing.T) {
@@ -173,7 +173,7 @@ func TestCollection_Delete(t *testing.T) {
 			return
 		}
 
-		assertSize(t, db, c.Name, 0)
+		assertSize(t, db, documentCollection, 0)
 	})
 
 	t.Run("error - refMake returns error", func(t *testing.T) {
@@ -394,7 +394,9 @@ func TestCollection_Get(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		c := createCollection(db)
 		ref, _ := defaultReferenceCreator(exampleDoc)
-		c.Add([]Document{exampleDoc})
+		if err := c.Add([]Document{exampleDoc}); err != nil {
+			t.Fatal(err)
+		}
 
 		d, err := c.Get(ref)
 
@@ -402,7 +404,9 @@ func TestCollection_Get(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, exampleDoc, *d)
+		if assert.NotNil(t, d) {
+			assert.Equal(t, exampleDoc, *d)
+		}
 	})
 
 	t.Run("error - not found", func(t *testing.T) {
@@ -425,17 +429,9 @@ func testIndex(t *testing.T) Index {
 }
 
 func createCollection(db *bbolt.DB) collection {
-	gCollection := collection{
-		Name:      GlobalCollection,
-		db:        db,
-		IndexList: []Index{},
-		refMake:   defaultReferenceCreator,
-	}
-
 	return collection{
 		Name:             "test",
 		db:               db,
-		globalCollection: &gCollection,
 		IndexList:        []Index{},
 		refMake:          defaultReferenceCreator,
 	}

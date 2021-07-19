@@ -127,7 +127,7 @@ func TestDocumentFetcher(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			fetcher := documentFetcher(tx.Bucket([]byte(GlobalCollection)), func(_ []byte, _ []byte) error {
+			fetcher := documentFetcher(tx.Bucket([]byte(documentCollection)), func(_ []byte, _ []byte) error {
 				return errors.New("failed")
 			})
 

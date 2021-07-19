@@ -26,10 +26,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// GlobalCollection is the collection that stores all the documents
-// specific collection only store indices
-const GlobalCollection = "_global"
-
 // Store is the main interface for storing/finding documents
 type Store interface {
 	// Collection creates or returns a collection.
@@ -37,11 +33,9 @@ type Store interface {
 	Collection(name string) Collection
 }
 
-// Store holds a reference to the bbolt data file and holds configured indices per collection.
+// Store holds a reference to the bbolt data file and all collections.
 type store struct {
 	db               *bbolt.DB
-	globalCollection *collection
-	indices          []Index
 	collections      map[string]*collection
 }
 
@@ -62,26 +56,15 @@ func NewStore(dbFile string) (Store, error) {
 		collections: map[string]*collection{},
 	}
 
-	st.globalCollection = &collection{
-		Name:    GlobalCollection,
-		db:      st.db,
-		refMake: defaultReferenceCreator,
-	}
-	st.globalCollection.globalCollection = st.globalCollection
 	return st, nil
 }
 
 func (s *store) Collection(name string) Collection {
-	if name == GlobalCollection {
-		return s.globalCollection
-	}
-
 	c, ok := s.collections[name]
 	if !ok {
 		c = &collection{
 			Name:             name,
 			db:               s.db,
-			globalCollection: s.globalCollection,
 			refMake:          defaultReferenceCreator,
 		}
 		s.collections[name] = c

@@ -63,8 +63,13 @@ type ReferenceScanFn func(key []byte, value []byte) error
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocWalker) error {
-	return f.collection.globalCollection.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(GlobalCollection))
+	return f.collection.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(f.collection.Name))
+		if bucket == nil {
+			// no bucket means no docs
+			return nil
+		}
+		bucket = bucket.Bucket([]byte(documentCollection))
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
@@ -114,8 +119,8 @@ func (i resultScanQueryPlan) execute(walker DocWalker) error {
 
 	// do the IndexScan
 	return i.collection.db.View(func(tx *bbolt.Tx) error {
-		globalBucket := tx.Bucket([]byte(GlobalCollection))
-		if globalBucket == nil {
+		docBucket := i.collection.documentBucket(tx)
+		if docBucket == nil {
 			// no bucket means no docs
 			return nil
 		}
@@ -127,7 +132,7 @@ func (i resultScanQueryPlan) execute(walker DocWalker) error {
 		resultScan := resultScanner(queryParts, walker)
 
 		// fetcher expands references to documents, for each document it calls the resultScan
-		fetcher := documentFetcher(globalBucket, resultScan)
+		fetcher := documentFetcher(docBucket, resultScan)
 
 		// expander expands the index entry to the actual document
 		expander := indexEntryExpander(fetcher)
@@ -137,9 +142,12 @@ func (i resultScanQueryPlan) execute(walker DocWalker) error {
 }
 
 // documentFetcher creates a ReferenceScanFn which is called with a reference, fetches the document and calls the documentScanFn
-func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) ReferenceScanFn {
+func documentFetcher(documentCollection *bbolt.Bucket, docWalker documentScanFn) ReferenceScanFn {
 	return func(key []byte, ref []byte) error {
-		docBytes := globalCollection.Get(ref)
+		if documentCollection == nil {
+			return nil
+		}
+		docBytes := documentCollection.Get(ref)
 		if docBytes != nil {
 			return docWalker(ref, docBytes)
 		}
