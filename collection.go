@@ -20,7 +20,7 @@
 package leia
 
 import (
-	"crypto/sha256"
+	"crypto/sha1"
 	"errors"
 
 	"go.etcd.io/bbolt"
@@ -66,8 +66,9 @@ type ReferenceFunc func(doc Document) (Reference, error)
 
 // default for shasum docs
 func defaultReferenceCreator(doc Document) (Reference, error) {
-	s := sha256.Sum256(doc.raw)
-	var b = make([]byte, 32)
+	//s := sha256.Sum256(doc.raw)
+	s := sha1.Sum(doc.raw)
+	var b = make([]byte, len(s))
 	copy(b, s[:])
 
 	return b, nil

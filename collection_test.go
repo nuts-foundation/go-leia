@@ -384,7 +384,7 @@ func TestCollection_Reference(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "6168e799a8253de0e701be24e03d619429a468a4cb037c196baa2ddee4e93500", ref.EncodeToString())
+		assert.Equal(t, "d29cb76cae7662a142e36c85eb39f4caa7fa593f", ref.EncodeToString())
 	})
 }
 

@@ -20,7 +20,6 @@
 package leia
 
 import (
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -29,15 +28,6 @@ import (
 
 const boltDBFileMode = 0600
 const KeyDelimiter = 0x10
-
-// NewReference calculates the sha256 of a piece of data and returns it as reference type
-func NewReference(data []byte) Reference {
-	s := sha256.Sum256(data)
-	var b = make([]byte, 32)
-	copy(b, s[:])
-
-	return b
-}
 
 // Reference equals a document hash. In an index, the values are references to docs.
 type Reference []byte

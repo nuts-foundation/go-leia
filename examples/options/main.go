@@ -21,6 +21,9 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
+	"path"
 	"time"
 
 	"github.com/nuts-foundation/go-leia"
@@ -34,7 +37,17 @@ func main() {
 		leia.NewFieldIndexer("list.#.subList", leia.AliasOption{Alias: "sublist"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
 	)
 
-	s, err := leia.NewStore("./test/documents.db")
+	dir, err := ioutil.TempDir("go-leia", "options")
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(dir); err != nil {
+			_, _ = os.Stderr.WriteString(fmt.Sprintf("Unable to remove temporary directory (%s): %v\n", dir, err))
+		}
+	}()
+
+	s, err := leia.NewStore(path.Join(dir, "documents.db"))
 	if err != nil {
 		panic(err)
 	}
@@ -48,23 +61,23 @@ func main() {
 	}
 
 	// populate
-	//size := 32
-	//for i := 0; i < size; i++ {
-	//	var docs = make([]leia.Document, 0)
-	//	for j := 0; j < size; j++ {
-	//		for k := 0; k < size; k++ {
-	//			for l := 0; l < size; l++ {
-	//				docs = append(docs, genJson(i, j, k, l))
-	//			}
-	//		}
-	//	}
-	//	err = c.Add(docs)
-	//	if err != nil {
-	//		panic(err)
-	//	}
-	//}
-	//
-	//fmt.Println("added docs")
+	size := 32
+	for i := 0; i < size; i++ {
+		var docs = make([]leia.Document, 0)
+		for j := 0; j < size; j++ {
+			for k := 0; k < size; k++ {
+				for l := 0; l < size; l++ {
+					docs = append(docs, genJson(i, j, k, l))
+				}
+			}
+		}
+		err = c.Add(docs)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	fmt.Println("added docs")
 
 	// only matches when toLower is working properly
 	query := leia.New(leia.Eq("id", "id16")).

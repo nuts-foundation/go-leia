@@ -21,19 +21,11 @@ package leia
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
-
-func TestNewReference(t *testing.T) {
-	d := NewReference([]byte("hello"))
-	h := hex.EncodeToString(d)
-
-	assert.Equal(t, "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824", h)
-}
 
 func TestReference_EncodeToString(t *testing.T) {
 	ref := Reference("ref")
