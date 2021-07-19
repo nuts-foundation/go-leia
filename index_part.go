@@ -19,18 +19,25 @@
 
 package leia
 
+// IndexOption is the common type for indexing options
+// It should not be used directly
 type IndexOption interface{}
 
+// TransformerOption is the option for a FieldIndexer to apply transformation before indexing the value.
+// The transformation is also applied to a query value that matches the indexed field.
 type TransformerOption struct {
 	IndexOption
 	Transformer Transform
 }
 
+// TokenizerOption is the option for a FieldIndexer to split a value to be indexed into multiple parts.
+// Each part is then indexed separately.
 type TokenizerOption struct {
 	IndexOption
 	Tokenizer Tokenizer
 }
 
+// AliasOption is the option for a FieldIndexer to add a custom JSON path that will also resolve to the same Index part
 type AliasOption struct {
 	IndexOption
 	Alias string

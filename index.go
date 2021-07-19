@@ -74,6 +74,8 @@ func NewIndex(name string, parts ...FieldIndexer) Index {
 	}
 }
 
+// FieldIndexer is the public interface that defines functions for a field index instruction.
+// A FieldIndexer is used when a document is indexed.
 type FieldIndexer interface {
 	// Name is used for matching against a Query
 	Name() string

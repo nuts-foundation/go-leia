@@ -44,6 +44,7 @@ func DocumentFromBytes(json []byte) Document {
 // ErrInvalidJSON is returned when invalid JSON is parsed
 var ErrInvalidJSON = errors.New("invalid json")
 
+// KeysAtPath returns the values found at the JSON path query as Key
 func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
 	rawKeys, err := d.ValuesAtPath(jsonPath)
 	if err != nil {
@@ -59,6 +60,7 @@ func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
 	return keys, nil
 }
 
+// ValuesAtPath returns a slice with the values found at the given JSON path query
 func (d Document) ValuesAtPath(jsonPath string) ([]interface{}, error) {
 	if !gjson.ValidBytes(d.raw) {
 		return nil, errors.New("invalid json")
