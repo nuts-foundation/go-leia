@@ -41,23 +41,19 @@ func DocumentFromBytes(json []byte) Document {
 	return Document{raw: json}
 }
 
-func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
-	if !gjson.ValidBytes(d.raw) {
-		return nil, errors.New("invalid json")
-	}
-	result := gjson.GetBytes(d.raw, jsonPath)
+// ErrInvalidJSON is returned when invalid JSON is parsed
+var ErrInvalidJSON = errors.New("invalid json")
 
-	rawKeys, err := valuesFromResult(result)
+func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
+	rawKeys, err := d.ValuesAtPath(jsonPath)
 	if err != nil {
 		return nil, err
 	}
 
 	keys := make([]Key, len(rawKeys))
 	for i, rk := range rawKeys {
-		key, err := toBytes(rk)
-		if err != nil {
-			return nil, err
-		}
+		// valuesFromResult has already filtered values that are not supported by toBytes
+		key, _ := toBytes(rk)
 		keys[i] = key
 	}
 	return keys, nil
