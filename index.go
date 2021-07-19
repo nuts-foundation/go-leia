@@ -43,8 +43,8 @@ type Index interface {
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
 
-	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the IteratorFn.
-	Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error
+	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
+	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
 
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
@@ -60,9 +60,9 @@ type Index interface {
 	Depth() int
 }
 
-// IteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
+// iteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
 // the key will be the indexed value and the value will contain an Entry
-type IteratorFn DocWalker
+type iteratorFn DocWalker
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
@@ -305,7 +305,7 @@ outer:
 	return parts[hits:], nil
 }
 
-func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error {
+func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error {
 	var err error
 
 	cBucket := bucket.Bucket(i.BucketName())
@@ -347,7 +347,7 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn IteratorFn) error {
+func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) error {
 	var err error
 	cPart := matchers[0].queryPart
 	for _, seek := range matchers[0].terms {

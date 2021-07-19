@@ -78,6 +78,13 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	i := 0
+	t = time.Now()
+	c.IndexIterate(query, func(key []byte, value []byte) error {
+		i++
+		return nil
+	})
+	fmt.Printf("found %d keys in %s\n", i, time.Now().Sub(t).String())
 
 	// only matches when range queries are working properly
 	query2 := leia.New(leia.Range("id", "ID16", "ID17")).
@@ -91,6 +98,13 @@ func main() {
 		panic(err)
 	}
 	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	i = 0
+	t = time.Now()
+	c.IndexIterate(query2, func(key []byte, value []byte) error {
+		i++
+		return nil
+	})
+	fmt.Printf("found %d keys in %s\n", i, time.Now().Sub(t).String())
 
 	// only matches when full table scan is working properly
 	query3 := leia.New(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).

@@ -55,7 +55,7 @@ type Collection interface {
 	Iterate(query Query, walker DocWalker) error
 	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
-	IndexIterate(query Query, fn IteratorFn) error
+	IndexIterate(query Query, fn ReferenceScanFn) error
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -223,9 +223,22 @@ func (c *collection) Iterate(query Query, fn DocWalker) error {
 	return nil
 }
 
-// IterateIndex: todo indexScanQueryPlan: uses the values from the index not the docs!
-func (c *collection) IndexIterate(query Query, fn IteratorFn) error {
-	return nil
+// IndexIterate uses a query to loop over all keys and Entries in an index. It skips the resultScan and collect phase
+func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
+	index := c.findIndex(query)
+	if index == nil {
+		return ErrNoIndex
+	}
+
+	plan := indexScanQueryPlan{
+		defaultQueryPlan: defaultQueryPlan {
+			collection: c,
+		},
+		index: index,
+		query: query,
+	}
+
+	return plan.Execute(fn)
 }
 
 // Delete a document from the store, this also removes the entries from indices

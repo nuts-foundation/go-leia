@@ -19,7 +19,11 @@
 
 package leia
 
-import "go.etcd.io/bbolt"
+import (
+	"errors"
+
+	"go.etcd.io/bbolt"
+)
 
 type queryPlan interface {
 	Execute(walker DocWalker) error
@@ -51,6 +55,33 @@ func (f fullTableScanQueryPlan) Execute(walker DocWalker) error {
 			}
 		}
 		return nil
+	})
+}
+
+type indexScanQueryPlan struct {
+	defaultQueryPlan
+	index Index
+	query Query
+}
+
+func (i indexScanQueryPlan) Execute(walker ReferenceScanFn) error {
+	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
+	if err != nil {
+		return err
+	}
+	if len(queryParts) != 0 {
+		return errors.New("no index with exact match to query found")
+	}
+
+	// do the IndexScan
+	return i.collection.db.View(func(tx *bbolt.Tx) error {
+		// nil is not possible since adding an index creates the iBucket
+		iBucket := tx.Bucket([]byte(i.collection.Name))
+
+		// expander expands the index entry to the actual document
+		expander := indexEntryExpander(walker)
+
+		return i.index.Iterate(iBucket, i.query, expander)
 	})
 }
 
@@ -90,14 +121,14 @@ func (i resultScanQueryPlan) Execute(walker DocWalker) error {
 	})
 }
 
-// referenceScanFn is a function type which is called with an index key and a document Reference as value
-type referenceScanFn func(key []byte, value []byte) error
+// ReferenceScanFn is a function type which is called with an index key and a document Reference as value
+type ReferenceScanFn func(key []byte, value []byte) error
 
 // documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
 type documentScanFn func(key []byte, value []byte) error
 
-// documentFetcher creates a referenceScanFn which is called with a reference, fetches the document and calls the documentScanFn
-func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) referenceScanFn {
+// documentFetcher creates a ReferenceScanFn which is called with a reference, fetches the document and calls the documentScanFn
+func documentFetcher(globalCollection *bbolt.Bucket, docWalker documentScanFn) ReferenceScanFn {
 	return func(key []byte, ref []byte) error {
 		docBytes := globalCollection.Get(ref)
 		if docBytes != nil {
@@ -134,9 +165,9 @@ func resultScanner(queryParts []QueryPart, walker DocWalker) documentScanFn {
 	}
 }
 
-// indexEntryExpander creates a IteratorFn that expands an index Entry into multiple document references.
-// for each reference the referenceScanFn func is called.
-func indexEntryExpander(refScan referenceScanFn) IteratorFn {
+// indexEntryExpander creates a iteratorFn that expands an index Entry into multiple document references.
+// for each reference the ReferenceScanFn func is called.
+func indexEntryExpander(refScan ReferenceScanFn) iteratorFn {
 	// contains references that have already been processed
 	refMap := map[string]bool{}
 
