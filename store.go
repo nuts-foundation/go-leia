@@ -35,8 +35,8 @@ type Store interface {
 
 // Store holds a reference to the bbolt data file and all collections.
 type store struct {
-	db               *bbolt.DB
-	collections      map[string]*collection
+	db          *bbolt.DB
+	collections map[string]*collection
 }
 
 // NewStore creates a new store.
@@ -63,9 +63,9 @@ func (s *store) Collection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
 		c = &collection{
-			Name:             name,
-			db:               s.db,
-			refMake:          defaultReferenceCreator,
+			Name:    name,
+			db:      s.db,
+			refMake: defaultReferenceCreator,
 		}
 		s.collections[name] = c
 	}

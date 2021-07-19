@@ -78,10 +78,10 @@ func defaultReferenceCreator(doc Document) (Reference, error) {
 }
 
 type collection struct {
-	Name             string `json:"name"`
-	db               *bbolt.DB
-	IndexList        []Index `json:"indices"`
-	refMake          ReferenceFunc
+	Name      string `json:"name"`
+	db        *bbolt.DB
+	IndexList []Index `json:"indices"`
+	refMake   ReferenceFunc
 }
 
 func (c *collection) AddIndex(index Index) error {
@@ -257,8 +257,8 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	docBucket := c.documentBucket(tx)
 	err = docBucket.Delete(ref)
 	if err != nil {
-			return err
-		}
+		return err
+	}
 
 	// indices
 	for _, i := range c.IndexList {

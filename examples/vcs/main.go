@@ -70,7 +70,7 @@ func main() {
 	// populate
 	issuers := 10
 	subjects := 50 // 100
-	total := 1000 // 10000
+	total := 1000  // 10000
 
 	genJson(issuers, subjects, total, c)
 	fmt.Printf("added %d docs\n", total*subjects*issuers)

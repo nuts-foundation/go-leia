@@ -430,9 +430,9 @@ func testIndex(t *testing.T) Index {
 
 func createCollection(db *bbolt.DB) collection {
 	return collection{
-		Name:             "test",
-		db:               db,
-		IndexList:        []Index{},
-		refMake:          defaultReferenceCreator,
+		Name:      "test",
+		db:        db,
+		IndexList: []Index{},
+		refMake:   defaultReferenceCreator,
 	}
 }
