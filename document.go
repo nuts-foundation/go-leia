@@ -31,6 +31,11 @@ type Document struct {
 	raw []byte
 }
 
+// Bytes returns the raw bytes
+func (d Document) Bytes() []byte {
+	return d.raw
+}
+
 // DocumentFromString creates a Document from a JSON string
 func DocumentFromString(json string) Document {
 	return Document{raw: []byte(json)}
