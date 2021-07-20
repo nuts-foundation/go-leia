@@ -31,6 +31,8 @@ type Store interface {
 	// Collection creates or returns a collection.
 	// On the db level it's a bucket for the documents and 1 bucket per index.
 	Collection(name string) Collection
+	// Close closes the bbolt DB
+	Close() error
 }
 
 // Store holds a reference to the bbolt data file and all collections.
@@ -71,4 +73,11 @@ func (s *store) Collection(name string) Collection {
 	}
 
 	return c
+}
+
+func (s *store) Close() error {
+	if s.db != nil {
+		return s.db.Close()
+	}
+	return nil
 }
