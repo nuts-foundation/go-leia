@@ -116,7 +116,7 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 	if j.getTransformer() == nil {
 		transformed = tokenized
 	} else {
-		for i, rawKey := range rawKeys {
+		for i, rawKey := range tokenized {
 			transformed[i] = j.getTransformer()(rawKey)
 		}
 	}
