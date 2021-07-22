@@ -50,7 +50,7 @@ func AliasOption(alias string) IndexOption {
 // the name is to be used as query key when searching
 func NewFieldIndexer(jsonPath string, options ...IndexOption) FieldIndexer {
 	fi := fieldIndexer{
-		path:    jsonPath,
+		path: jsonPath,
 	}
 	for _, o := range options {
 		o(&fi)

@@ -87,7 +87,7 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 		queryPlan := indexScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query: New(Eq("key", "value")),
+				query:      New(Eq("key", "value")),
 			},
 			index: testIndex(t),
 		}
@@ -108,7 +108,7 @@ func TestResultScanQueryPlan_Execute(t *testing.T) {
 		queryPlan := resultScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query: New(Eq("key", "value")),
+				query:      New(Eq("key", "value")),
 			},
 			index: testIndex(t),
 		}

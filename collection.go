@@ -35,6 +35,7 @@ type DocumentWalker func(key Reference, value []byte) error
 
 // documentCollection is the bucket that stores all the documents for a collection
 const documentCollection = "_documents"
+
 func documentCollectionByteRef() []byte {
 	return []byte(documentCollection)
 }
@@ -226,7 +227,7 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	plan := indexScanQueryPlan{
 		queryPlanBase: queryPlanBase{
 			collection: c,
-			query: query,
+			query:      query,
 		},
 		index: index,
 	}
@@ -281,7 +282,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 		return fullTableScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: c,
-				query: query,
+				query:      query,
 			},
 		}, nil
 	}
@@ -289,7 +290,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 	return resultScanQueryPlan{
 		queryPlanBase: queryPlanBase{
 			collection: c,
-			query: query,
+			query:      query,
 		},
 		index: index,
 	}, nil

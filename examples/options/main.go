@@ -102,7 +102,6 @@ func main() {
 		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
 		And(leia.Range("sublist", "SUBLIST.VAL16", "SUBLIST.VAL17"))
 
-
 	j, err = c.Find(query2)
 	if err != nil {
 		panic(err)

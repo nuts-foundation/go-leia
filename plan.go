@@ -34,7 +34,7 @@ type queryPlan interface {
 // queryPlanBase contains elements common for each query plan
 type queryPlanBase struct {
 	collection *collection
-	query Query
+	query      Query
 }
 
 // fullTableScanQueryPlan is a query plan which scans all documents
