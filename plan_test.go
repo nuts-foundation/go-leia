@@ -32,12 +32,12 @@ func TestFullTableScanQueryPlan_execute(t *testing.T) {
 		db := testDB(t)
 		c := createCollection(db)
 		queryPlan := fullTableScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan{
+			queryPlanBase: queryPlanBase{
 				collection: &c,
 			},
 		}
 
-		err := queryPlan.execute(func(key []byte, value []byte) error {
+		err := queryPlan.execute(func(key Reference, value []byte) error {
 			// should not be called
 			return errors.New("failed")
 		})
@@ -50,12 +50,12 @@ func TestFullTableScanQueryPlan_execute(t *testing.T) {
 		c := createCollection(db)
 		c.Add([]Document{exampleDoc})
 		queryPlan := fullTableScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan{
+			queryPlanBase: queryPlanBase{
 				collection: &c,
 			},
 		}
 
-		err := queryPlan.execute(func(key []byte, value []byte) error {
+		err := queryPlan.execute(func(key Reference, value []byte) error {
 			// should not be called
 			return errors.New("failed")
 		})
@@ -67,8 +67,10 @@ func TestFullTableScanQueryPlan_execute(t *testing.T) {
 func TestIndexScanQueryPlan_Execute(t *testing.T) {
 	t.Run("error - query does not exactly match index", func(t *testing.T) {
 		queryPlan := indexScanQueryPlan{
+			queryPlanBase: queryPlanBase{
+				query: New(Eq("key", "value")).And(Eq("not_indexed", "value")),
+			},
 			index: testIndex(t),
-			query: New(Eq("key", "value")).And(Eq("not_indexed", "value")),
 		}
 
 		err := queryPlan.execute(func(key []byte, value []byte) error {
@@ -83,11 +85,11 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 		db := testDB(t)
 		c := createCollection(db)
 		queryPlan := indexScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan{
+			queryPlanBase: queryPlanBase{
 				collection: &c,
+				query: New(Eq("key", "value")),
 			},
 			index: testIndex(t),
-			query: New(Eq("key", "value")),
 		}
 
 		err := queryPlan.execute(func(key []byte, value []byte) error {
@@ -104,14 +106,14 @@ func TestResultScanQueryPlan_Execute(t *testing.T) {
 		db := testDB(t)
 		c := createCollection(db)
 		queryPlan := resultScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan{
+			queryPlanBase: queryPlanBase{
 				collection: &c,
+				query: New(Eq("key", "value")),
 			},
 			index: testIndex(t),
-			query: New(Eq("key", "value")),
 		}
 
-		err := queryPlan.execute(func(key []byte, value []byte) error {
+		err := queryPlan.execute(func(key Reference, value []byte) error {
 			// should not be called
 			return errors.New("failed")
 		})
@@ -127,7 +129,7 @@ func TestDocumentFetcher(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			fetcher := documentFetcher(tx.Bucket([]byte(documentCollection)), func(_ []byte, _ []byte) error {
+			fetcher := documentFetcher(tx.Bucket(documentCollectionByteRef()), func(_ []byte, _ []byte) error {
 				return errors.New("failed")
 			})
 
@@ -159,7 +161,7 @@ func TestResultScanner(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			scanner := resultScanner([]QueryPart{Eq("main.nesting", "value")}, func(_ []byte, _ []byte) error {
+			scanner := resultScanner([]QueryPart{Eq("main.nesting", "value")}, func(_ Reference, _ []byte) error {
 				return errors.New("failed")
 			})
 
@@ -175,7 +177,7 @@ func TestResultScanner(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			scanner := resultScanner([]QueryPart{Eq("id", true)}, func(_ []byte, _ []byte) error {
+			scanner := resultScanner([]QueryPart{Eq("id", true)}, func(_ Reference, _ []byte) error {
 				return errors.New("failed")
 			})
 

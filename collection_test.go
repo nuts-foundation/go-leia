@@ -99,7 +99,7 @@ func TestCollection_DropIndex(t *testing.T) {
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		i2 := NewIndex("other",
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
 		)
 		c := createCollection(db)
 		c.Add([]Document{exampleDoc})
@@ -117,10 +117,6 @@ func TestCollection_DropIndex(t *testing.T) {
 func TestCollection_Add(t *testing.T) {
 	db := testDB(t)
 
-	errorRef := func(doc Document) (Reference, error) {
-		return nil, errors.New("b00m!")
-	}
-
 	t.Run("ok", func(t *testing.T) {
 		c := createCollection(db)
 		err := c.Add([]Document{exampleDoc})
@@ -130,23 +126,10 @@ func TestCollection_Add(t *testing.T) {
 
 		assertSize(t, db, documentCollection, 1)
 	})
-
-	t.Run("error - refmake fails", func(t *testing.T) {
-		c := createCollection(db)
-		c.refMake = errorRef
-
-		err := c.Add([]Document{exampleDoc})
-
-		assert.Error(t, err)
-	})
 }
 
 func TestCollection_Delete(t *testing.T) {
 	i := testIndex(t)
-
-	errorRef := func(doc Document) (Reference, error) {
-		return nil, errors.New("b00m!")
-	}
 
 	t.Run("ok", func(t *testing.T) {
 		db := testDB(t)
@@ -174,17 +157,6 @@ func TestCollection_Delete(t *testing.T) {
 		}
 
 		assertSize(t, db, documentCollection, 0)
-	})
-
-	t.Run("error - refMake returns error", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
-
-		c.refMake = errorRef
-		err := c.Delete(exampleDoc)
-
-		assert.Error(t, err)
 	})
 }
 
@@ -317,7 +289,7 @@ func TestCollection_Iterate(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})
@@ -330,7 +302,7 @@ func TestCollection_Iterate(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				return errors.New("b00m!")
 			})
 		})
@@ -378,11 +350,7 @@ func TestCollection_Reference(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		c := createCollection(db)
 
-		ref, err := c.Reference(exampleDoc)
-
-		if !assert.NoError(t, err) {
-			return
-		}
+		ref := c.Reference(exampleDoc)
 
 		assert.Equal(t, "d29cb76cae7662a142e36c85eb39f4caa7fa593f", ref.EncodeToString())
 	})
@@ -393,7 +361,7 @@ func TestCollection_Get(t *testing.T) {
 
 	t.Run("ok", func(t *testing.T) {
 		c := createCollection(db)
-		ref, _ := defaultReferenceCreator(exampleDoc)
+		ref := defaultReferenceCreator(exampleDoc)
 		if err := c.Add([]Document{exampleDoc}); err != nil {
 			t.Fatal(err)
 		}
@@ -424,7 +392,7 @@ func TestCollection_Get(t *testing.T) {
 
 func testIndex(t *testing.T) Index {
 	return NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
+		NewFieldIndexer("path.part", AliasOption("key")),
 	)
 }
 

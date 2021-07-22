@@ -35,11 +35,11 @@ func TestNewIndex(t *testing.T) {
 
 func TestIndex_AddJson(t *testing.T) {
 	doc := DocumentFromString(jsonExample)
-	ref, _ := defaultReferenceCreator(doc)
+	ref := defaultReferenceCreator(doc)
 	db := testDB(t)
 
 	t.Run("ok - value added as key to document reference", func(t *testing.T) {
-		i := NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption{Alias: "key"}))
+		i := NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption("key")))
 
 		db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, doc)
@@ -50,8 +50,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - values added as key to document reference", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.parts", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.parts", AliasOption("key")),
+			NewFieldIndexer("path.part", AliasOption("key2")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -64,8 +64,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - value added as key using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -80,11 +80,11 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 		doc2 := DocumentFromString(jsonExample2)
-		ref2, _ := defaultReferenceCreator(doc2)
+		ref2 := defaultReferenceCreator(doc2)
 
 		db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -102,7 +102,7 @@ func TestIndex_AddJson(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption{Alias: "key"}))
+		i := NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption("key")))
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, DocumentFromString("}"))
@@ -113,8 +113,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.parts", AliasOption{Alias: "key"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.parts", AliasOption("key")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -127,11 +127,11 @@ func TestIndex_AddJson(t *testing.T) {
 
 func TestIndex_Delete(t *testing.T) {
 	doc := DocumentFromString(jsonExample)
-	ref, _ := defaultReferenceCreator(doc)
+	ref := defaultReferenceCreator(doc)
 	db := testDB(t)
 
 	t.Run("ok - value added and removed", func(t *testing.T) {
-		i := NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption{Alias: "key"}))
+		i := NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption("key")))
 
 		db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -144,8 +144,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - value added and removed using recursion", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -158,7 +158,7 @@ func TestIndex_Delete(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption{Alias: "key"}))
+		i := NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption("key")))
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -171,8 +171,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -185,8 +185,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - not indexed", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 
 		db.Update(func(tx *bbolt.Tx) error {
@@ -199,11 +199,11 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-			NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
 		doc2 := DocumentFromString(jsonExample2)
-		ref2, _ := defaultReferenceCreator(doc2)
+		ref2 := defaultReferenceCreator(doc2)
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -225,8 +225,8 @@ func TestIndex_Delete(t *testing.T) {
 
 func TestIndex_IsMatch(t *testing.T) {
 	i := NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption{Alias: "key"}),
-		NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key2"}),
+		NewFieldIndexer("path.part", AliasOption("key")),
+		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 	)
 
 	t.Run("ok - exact match", func(t *testing.T) {
@@ -269,15 +269,15 @@ func TestIndex_IsMatch(t *testing.T) {
 
 func TestIndex_Find(t *testing.T) {
 	doc := DocumentFromString(jsonExample)
-	ref, _ := defaultReferenceCreator(doc)
+	ref := defaultReferenceCreator(doc)
 	doc2 := DocumentFromString(jsonExample2)
-	ref2, _ := defaultReferenceCreator(doc2)
+	ref2 := defaultReferenceCreator(doc2)
 	db := testDB(t)
 
 	i := NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption{Alias: "key"}, TokenizerOption{Tokenizer: WhiteSpaceTokenizer}, TransformerOption{Transformer: ToLower}),
-		NewFieldIndexer("path.parts", AliasOption{Alias: "key2"}),
-		NewFieldIndexer("path.more.#.parts", AliasOption{Alias: "key3"}),
+		NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+		NewFieldIndexer("path.parts", AliasOption("key2")),
+		NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
 	)
 
 	db.Update(func(tx *bbolt.Tx) error {
@@ -292,7 +292,7 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				found = true
 				return nil
 			})
@@ -308,7 +308,7 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})
@@ -324,7 +324,7 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})
@@ -341,7 +341,7 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})
@@ -357,7 +357,7 @@ func TestIndex_Find(t *testing.T) {
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key []byte, value []byte) error {
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
 				return nil
 			})
 		})

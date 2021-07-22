@@ -27,33 +27,31 @@ import (
 
 // queryPlan is the interface for all query plans
 type queryPlan interface {
-	// execute the plan call the DocWalker for each matching document
-	execute(walker DocWalker) error
+	// execute the plan call the DocumentWalker for each matching document
+	execute(walker DocumentWalker) error
 }
 
-// defaultQueryPlan contains elements common for each query plan
-type defaultQueryPlan struct {
+// queryPlanBase contains elements common for each query plan
+type queryPlanBase struct {
 	collection *collection
+	query Query
 }
 
 // fullTableScanQueryPlan is a query plan which scans all documents
 type fullTableScanQueryPlan struct {
-	defaultQueryPlan
-	queryParts []QueryPart
+	queryPlanBase
 }
 
 // resultScanQueryPlan is a query plan that uses an index and filters the results with the remaining query params
 type resultScanQueryPlan struct {
-	defaultQueryPlan
+	queryPlanBase
 	index Index
-	query Query
 }
 
 // indexScanQueryPlan is a special query plan that only loops over the index keys and document references
 type indexScanQueryPlan struct {
-	defaultQueryPlan
+	queryPlanBase
 	index Index
-	query Query
 }
 
 // ReferenceScanFn is a function type which is called with an index key and a document Reference as value
@@ -62,20 +60,24 @@ type ReferenceScanFn func(key []byte, value []byte) error
 // documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
 type documentScanFn func(key []byte, value []byte) error
 
-func (f fullTableScanQueryPlan) execute(walker DocWalker) error {
+func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 	return f.collection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(f.collection.Name))
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
 		}
-		bucket = bucket.Bucket([]byte(documentCollection))
+		bucket = bucket.Bucket(documentCollectionByteRef())
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
 		}
 
-		scanner := resultScanner(f.queryParts, walker)
+		parts := make([]QueryPart, 0)
+		if f.query != nil {
+			parts = f.query.Parts()
+		}
+		scanner := resultScanner(parts, walker)
 
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
@@ -111,7 +113,7 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 	})
 }
 
-func (i resultScanQueryPlan) execute(walker DocWalker) error {
+func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
 	if err != nil {
 		return err
@@ -157,8 +159,8 @@ func documentFetcher(documentCollection *bbolt.Bucket, docWalker documentScanFn)
 }
 
 // resultScanner returns a resultScannerFn. For each call it will compare the document against the given queryParts.
-// If conditions are met, it'll call the DocWalker
-func resultScanner(queryParts []QueryPart, walker DocWalker) documentScanFn {
+// If conditions are met, it'll call the DocumentWalker
+func resultScanner(queryParts []QueryPart, walker DocumentWalker) documentScanFn {
 	return func(ref []byte, docBytes []byte) error {
 		doc := DocumentFromBytes(docBytes)
 	outer:
@@ -188,7 +190,7 @@ func indexEntryExpander(refScan ReferenceScanFn) iteratorFn {
 	// contains references that have already been processed
 	refMap := map[string]bool{}
 
-	return func(key []byte, value []byte) error {
+	return func(key Reference, value []byte) error {
 		refs, err := entryToSlice(value)
 		if err != nil {
 			return err

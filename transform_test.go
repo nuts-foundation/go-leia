@@ -136,7 +136,7 @@ func TestIndex_Iterate(t *testing.T) {
 		count := 0
 
 		err = withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Iterate(bucket, q, func(key []byte, value []byte) error {
+			return i.Iterate(bucket, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})
@@ -165,7 +165,7 @@ func TestIndex_Iterate(t *testing.T) {
 		count := 0
 
 		err = withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Iterate(bucket, q, func(key []byte, value []byte) error {
+			return i.Iterate(bucket, q, func(key Reference, value []byte) error {
 				count++
 				return nil
 			})

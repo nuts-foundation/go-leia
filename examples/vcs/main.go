@@ -31,17 +31,9 @@ import (
 )
 
 func main() {
-	// profiling
-	//f, err := os.Create("profile")
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//pprof.StartCPUProfile(f)
-	//defer pprof.StopCPUProfile()
-
 	var credentialIndex = leia.NewIndex("subject.resource",
-		leia.NewFieldIndexer("credentialSubject.id", leia.AliasOption{Alias: "subject"}),
-		leia.NewFieldIndexer("credentialSubject.resources.#.path", leia.AliasOption{Alias: "resource"}, leia.TransformerOption{Transformer: leia.ToLower}),
+		leia.NewFieldIndexer("credentialSubject.id", leia.AliasOption("subject")),
+		leia.NewFieldIndexer("credentialSubject.resources.#.path", leia.AliasOption("resource"), leia.TransformerOption(leia.ToLower)),
 	)
 
 	dir, err := ioutil.TempDir("", "vcs")
@@ -69,8 +61,8 @@ func main() {
 
 	// populate
 	issuers := 10
-	subjects := 50 // 100
-	total := 1000  // 10000
+	subjects := 50
+	total := 1000
 
 	genJson(issuers, subjects, total, c)
 	fmt.Printf("added %d docs\n", total*subjects*issuers)
@@ -78,12 +70,11 @@ func main() {
 	query := leia.New(leia.Eq("subject", "did:nuts:subject_8")).
 		And(leia.Eq("resource", "/resource/15/8_9"))
 
-	t := time.Now()
 	j, err := c.Find(query)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	fmt.Printf("found %d docs\n", len(j))
 }
 
 type credential struct {

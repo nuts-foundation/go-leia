@@ -68,7 +68,7 @@ func (d Document) KeysAtPath(jsonPath string) ([]Key, error) {
 // ValuesAtPath returns a slice with the values found at the given JSON path query
 func (d Document) ValuesAtPath(jsonPath string) ([]interface{}, error) {
 	if !gjson.ValidBytes(d.raw) {
-		return nil, errors.New("invalid json")
+		return nil, ErrInvalidJSON
 	}
 	result := gjson.GetBytes(d.raw, jsonPath)
 

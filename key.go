@@ -26,13 +26,13 @@ type Key []byte
 
 // KeyOf creates a key from an interface
 func KeyOf(value interface{}) Key {
-	switch value.(type) {
+	switch val := value.(type) {
 	case string:
-		return []byte(value.(string))
+		return []byte(val)
 	case []byte:
-		return value.([]byte)
+		return val
 	case Key:
-		return value.(Key)
+		return val
 	}
 	return nil
 }

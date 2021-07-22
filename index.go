@@ -53,7 +53,7 @@ type Index interface {
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
 	Sort(query Query, includeMissing bool) ([]QueryPart, error)
 
-	// QueryPartsOutsideIndex selects the queryParts that are not used by the index.
+	// QueryPartsOutsideIndex selects the queryParts that are not convered by the index.
 	QueryPartsOutsideIndex(query Query) ([]QueryPart, error)
 
 	// Depth returns the number of indexed fields
@@ -62,7 +62,7 @@ type Index interface {
 
 // iteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
 // the key will be the indexed value and the value will contain an Entry
-type iteratorFn DocWalker
+type iteratorFn DocumentWalker
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.

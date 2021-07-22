@@ -24,17 +24,16 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"time"
 
 	"github.com/nuts-foundation/go-leia"
 )
 
 func main() {
 	var compoundIndex = leia.NewIndex("compound",
-		leia.NewFieldIndexer("id", leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}, leia.TransformerOption{Transformer: leia.ToLower}),
-		leia.NewFieldIndexer("obj.key", leia.AliasOption{Alias: "obj"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
-		leia.NewFieldIndexer("list.#.key", leia.AliasOption{Alias: "list"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
-		leia.NewFieldIndexer("list.#.subList", leia.AliasOption{Alias: "sublist"}, leia.TokenizerOption{Tokenizer: leia.WhiteSpaceTokenizer}),
+		leia.NewFieldIndexer("id", leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
+		leia.NewFieldIndexer("obj.key", leia.AliasOption("obj"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer("list.#.key", leia.AliasOption("list"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer("list.#.subList", leia.AliasOption("sublist"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
 	)
 
 	dir, err := ioutil.TempDir("go-leia", "options")
@@ -85,19 +84,17 @@ func main() {
 		And(leia.Eq("list", "LIST.VAL16")).
 		And(leia.Eq("sublist", "SUBLIST.VAL16"))
 
-	t := time.Now()
 	j, err := c.Find(query)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	fmt.Printf("found %d docs\n", len(j))
 	i := 0
-	t = time.Now()
 	c.IndexIterate(query, func(key []byte, value []byte) error {
 		i++
 		return nil
 	})
-	fmt.Printf("found %d keys in %s\n", i, time.Now().Sub(t).String())
+	fmt.Printf("found %d keys\n", i)
 
 	// only matches when range queries are working properly
 	query2 := leia.New(leia.Range("id", "ID16", "ID17")).
@@ -105,40 +102,40 @@ func main() {
 		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
 		And(leia.Range("sublist", "SUBLIST.VAL16", "SUBLIST.VAL17"))
 
-	t = time.Now()
+
 	j, err = c.Find(query2)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	fmt.Printf("found %d docs\n", len(j))
 	i = 0
-	t = time.Now()
+
 	c.IndexIterate(query2, func(key []byte, value []byte) error {
 		i++
 		return nil
 	})
-	fmt.Printf("found %d keys in %s\n", i, time.Now().Sub(t).String())
+	fmt.Printf("found %d keys\n", i)
 
 	// only matches when full table scan is working properly
 	query3 := leia.New(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
 		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
-	t = time.Now()
+
 	j, err = c.Find(query3)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	fmt.Printf("found %d docs\n", len(j))
 
 	// combination of an index and additional constraints
 	query4 := leia.New(leia.Range("id", "ID16", "ID17")).
 		And(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
 		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
-	t = time.Now()
+
 	j, err = c.Find(query4)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("found %d docs in %s\n", len(j), time.Now().Sub(t).String())
+	fmt.Printf("found %d docs\n", len(j))
 }
 
 // test data

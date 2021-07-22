@@ -158,11 +158,11 @@ func (r rangePart) Condition(key Key, transform Transform) (bool, error) {
 		return false, nil
 	}
 
-	b, err = toBytes(eTransformed)
+	e, err := toBytes(eTransformed)
 	if err != nil {
 		return false, err
 	}
-	return bytes.Compare(key, b) <= 0, nil
+	return bytes.Compare(key, e) <= 0, nil
 }
 
 type prefixPart struct {

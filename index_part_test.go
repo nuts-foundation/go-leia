@@ -29,7 +29,7 @@ import (
 
 func TestNewIndexPart(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewFieldIndexer("path", AliasOption{Alias: "name"})
+		ip := NewFieldIndexer("path", AliasOption("name"))
 
 		jip, ok := ip.(fieldIndexer)
 
@@ -43,7 +43,7 @@ func TestNewIndexPart(t *testing.T) {
 
 func TestJsonIndexPart_Name(t *testing.T) {
 	t.Run("ok - by alias", func(t *testing.T) {
-		ip := NewFieldIndexer("path", AliasOption{Alias: "name"})
+		ip := NewFieldIndexer("path", AliasOption("name"))
 
 		assert.Equal(t, "name", ip.Name())
 	})

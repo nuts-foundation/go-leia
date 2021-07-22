@@ -10,8 +10,6 @@ go-leia is built upon [bbolt](https://github.com/etcd-io/bbolt).
 It adds indexed based search capabilities for JSON documents to the key-value store.
 
 The goal is to provide a simple and fast way to find relevant JSON documents using an embedded Go key-value store.
-As far as performance goes, reads have preference over writes. Meaning that a search will typically be completed within 0.2ms.
-A write action can take as much as 20ms depending circumstances.
 
 ## Table of Contents    
 
@@ -82,7 +80,7 @@ func main() {
 	
     // if a collection doesn't exist, it'll be created for you.
     // the underlying buckets are created when a document is added.
-	collection := store.Collection("credentials")
+    collection := store.Collection("credentials")
 }
 ```
 
@@ -106,7 +104,6 @@ func main() {
 ```
 
 Documents are added by slice. Each operation is done within a single bbolt transaction.
-Make sure you don't add too many documents within a single transaction.
 BBolt is a key-value store, so you've probably noticed the key is missing as an argument.
 Leia computes the sha-1 of the document and uses that as key.
 
@@ -159,7 +156,7 @@ func main() {
 
 ### Searching
 
-Reading and writing can be achieved using bbolt directly, the benefit of leia is searching.
+The major benefit of leia is searching.
 The performance of a search greatly depends on the available indices on a collection.
 If no index matches the query, a bbolt cursor is used to loop over all documents in the collection.
 
@@ -201,6 +198,7 @@ func main() {
 
 Indexing JSON documents is where the real added value of leia lies.
 For each collection multiple indices can be added.
+Each added index will slow down write operations.
 
 An index can be added and removed:
 
@@ -264,7 +262,7 @@ func main() {
     
     ...
 
-    // these queries will be the same
+    // these queries will yield the same result
     query1 := leia.New(leia.Eq("subject", "VALUE"))
     query2 := leia.New(leia.Eq("subject", "value"))
 }

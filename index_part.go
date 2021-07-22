@@ -19,76 +19,55 @@
 
 package leia
 
-// IndexOption is the common type for indexing options
-// It should not be used directly
-type IndexOption interface{}
+// IndexOption is the option function for adding options to a FieldIndexer
+type IndexOption func(fieldIndexer *fieldIndexer)
 
 // TransformerOption is the option for a FieldIndexer to apply transformation before indexing the value.
 // The transformation is also applied to a query value that matches the indexed field.
-type TransformerOption struct {
-	IndexOption
-	Transformer Transform
+func TransformerOption(transformer Transform) IndexOption {
+	return func(fieldIndexer *fieldIndexer) {
+		fieldIndexer.transformer = transformer
+	}
 }
 
 // TokenizerOption is the option for a FieldIndexer to split a value to be indexed into multiple parts.
 // Each part is then indexed separately.
-type TokenizerOption struct {
-	IndexOption
-	Tokenizer Tokenizer
+func TokenizerOption(tokenizer Tokenizer) IndexOption {
+	return func(fieldIndexer *fieldIndexer) {
+		fieldIndexer.tokenizer = tokenizer
+	}
 }
 
 // AliasOption is the option for a FieldIndexer to add a custom JSON path that will also resolve to the same Index part
-type AliasOption struct {
-	IndexOption
-	Alias string
+func AliasOption(alias string) IndexOption {
+	return func(fieldIndexer *fieldIndexer) {
+		fieldIndexer.alias = &alias
+	}
 }
 
 // NewFieldIndexer creates a new fieldIndexer
 // leave the name empty to use the json path as name.
 // the name is to be used as query key when searching
 func NewFieldIndexer(jsonPath string, options ...IndexOption) FieldIndexer {
-	return fieldIndexer{
+	fi := fieldIndexer{
 		path:    jsonPath,
-		options: options,
 	}
+	for _, o := range options {
+		o(&fi)
+	}
+	return fi
 }
 
 type fieldIndexer struct {
-	path    string
-	options []IndexOption
-}
-
-func (j fieldIndexer) getAlias() *string {
-	for _, o := range j.options {
-		if a, b := o.(AliasOption); b {
-			return &a.Alias
-		}
-	}
-	return nil
-}
-
-func (j fieldIndexer) getTokenizer() Tokenizer {
-	for _, o := range j.options {
-		if a, b := o.(TokenizerOption); b {
-			return a.Tokenizer
-		}
-	}
-	return nil
-}
-
-func (j fieldIndexer) getTransformer() Transform {
-	for _, o := range j.options {
-		if a, b := o.(TransformerOption); b {
-			return a.Transformer
-		}
-	}
-	return nil
+	alias       *string
+	path        string
+	transformer Transform
+	tokenizer   Tokenizer
 }
 
 func (j fieldIndexer) Name() string {
-	alias := j.getAlias()
-	if alias != nil {
-		return *alias
+	if j.alias != nil {
+		return *j.alias
 	}
 	return j.path
 }
@@ -102,7 +81,7 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 
 	// run the tokenizer
 	tokenized := make([]interface{}, 0)
-	if j.getTokenizer() == nil {
+	if j.tokenizer == nil {
 		tokenized = rawKeys
 	} else {
 		for _, rawKey := range rawKeys {
@@ -113,11 +92,11 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 
 	// run the transformer
 	transformed := make([]interface{}, len(tokenized))
-	if j.getTransformer() == nil {
+	if j.transformer == nil {
 		transformed = tokenized
 	} else {
 		for i, rawKey := range tokenized {
-			transformed[i] = j.getTransformer()(rawKey)
+			transformed[i] = j.transformer(rawKey)
 		}
 	}
 
@@ -134,12 +113,12 @@ func (j fieldIndexer) Keys(document Document) ([]Key, error) {
 }
 
 func (j fieldIndexer) Tokenize(value interface{}) []interface{} {
-	if j.getTokenizer() == nil {
+	if j.tokenizer == nil {
 		return []interface{}{value}
 	}
 
 	if s, ok := value.(string); ok {
-		tokens := j.getTokenizer()(s)
+		tokens := j.tokenizer(s)
 		result := make([]interface{}, len(tokens))
 		for i, t := range tokens {
 			result[i] = t
@@ -150,8 +129,8 @@ func (j fieldIndexer) Tokenize(value interface{}) []interface{} {
 }
 
 func (j fieldIndexer) Transform(value interface{}) interface{} {
-	if j.getTransformer() == nil {
+	if j.transformer == nil {
 		return value
 	}
-	return j.getTransformer()(value)
+	return j.transformer(value)
 }

@@ -29,12 +29,15 @@ import (
 // ErrNoIndex is returned when no index is found to query against
 var ErrNoIndex = errors.New("no index found")
 
-// DocWalker defines a function that is used as a callback for matching documents.
+// DocumentWalker defines a function that is used as a callback for matching documents.
 // The key will be the document Reference (hash) and the value will be the raw document bytes
-type DocWalker func(key []byte, value []byte) error
+type DocumentWalker func(key Reference, value []byte) error
 
 // documentCollection is the bucket that stores all the documents for a collection
 const documentCollection = "_documents"
+func documentCollectionByteRef() []byte {
+	return []byte(documentCollection)
+}
 
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
@@ -45,7 +48,7 @@ type Collection interface {
 	DropIndex(name string) error
 	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
-	// Get returns a document by reference
+	// Get returns the data for the given key or nil if not found
 	Get(ref Reference) (*Document, error)
 	// Delete a document
 	Delete(doc Document) error
@@ -53,9 +56,9 @@ type Collection interface {
 	// returns ErrNoIndex when no suitable index can be found
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
-	Reference(doc Document) (Reference, error)
+	Reference(doc Document) Reference
 	// Iterate over documents that match the given query
-	Iterate(query Query, walker DocWalker) error
+	Iterate(query Query, walker DocumentWalker) error
 	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
 	IndexIterate(query Query, fn ReferenceScanFn) error
@@ -65,16 +68,15 @@ type Collection interface {
 // references are the key under which a document is stored.
 // a ReferenceFunc could be the sha256 func or something that stores document in chronological order.
 // The first would be best for random access, the latter for chronological access
-type ReferenceFunc func(doc Document) (Reference, error)
+type ReferenceFunc func(doc Document) Reference
 
 // default for shasum docs
-func defaultReferenceCreator(doc Document) (Reference, error) {
-	//s := sha256.Sum256(doc.raw)
+func defaultReferenceCreator(doc Document) Reference {
 	s := sha1.Sum(doc.raw)
 	var b = make([]byte, len(s))
 	copy(b, s[:])
 
-	return b, nil
+	return b
 }
 
 type collection struct {
@@ -102,7 +104,7 @@ func (c *collection) AddIndex(index Index) error {
 			return nil
 		}
 
-		gBucket, err := bucket.CreateBucketIfNotExists([]byte(documentCollection))
+		gBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
 		if err != nil {
 			return err
 		}
@@ -144,7 +146,7 @@ func (c *collection) DropIndex(name string) error {
 	})
 }
 
-func (c *collection) Reference(doc Document) (Reference, error) {
+func (c *collection) Reference(doc Document) Reference {
 	return c.refMake(doc)
 }
 
@@ -162,16 +164,13 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 		return err
 	}
 
-	docBucket, err := bucket.CreateBucketIfNotExists([]byte(documentCollection))
+	docBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
 	if err != nil {
 		return err
 	}
 
 	for _, doc := range jsonSet {
-		ref, err := c.refMake(doc)
-		if err != nil {
-			return err
-		}
+		ref := c.refMake(doc)
 
 		// indices
 		// buckets are cached within tx
@@ -193,7 +192,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 
 func (c *collection) Find(query Query) ([]Document, error) {
 	docs := make([]Document, 0)
-	walker := func(key []byte, value []byte) error {
+	walker := func(key Reference, value []byte) error {
 		docs = append(docs, DocumentFromBytes(value))
 		return nil
 	}
@@ -205,7 +204,7 @@ func (c *collection) Find(query Query) ([]Document, error) {
 	return docs, nil
 }
 
-func (c *collection) Iterate(query Query, fn DocWalker) error {
+func (c *collection) Iterate(query Query, fn DocumentWalker) error {
 	plan, err := c.queryPlan(query)
 	if err != nil {
 		return err
@@ -225,11 +224,11 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	}
 
 	plan := indexScanQueryPlan{
-		defaultQueryPlan: defaultQueryPlan{
+		queryPlanBase: queryPlanBase{
 			collection: c,
+			query: query,
 		},
 		index: index,
-		query: query,
 	}
 
 	return plan.execute(fn)
@@ -249,13 +248,13 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 		return nil
 	}
 
-	ref, err := c.refMake(doc)
-	if err != nil {
-		return err
-	}
+	ref := c.refMake(doc)
 
 	docBucket := c.documentBucket(tx)
-	err = docBucket.Delete(ref)
+	if docBucket == nil {
+		return nil
+	}
+	err := docBucket.Delete(ref)
 	if err != nil {
 		return err
 	}
@@ -280,19 +279,19 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 
 	if index == nil {
 		return fullTableScanQueryPlan{
-			defaultQueryPlan: defaultQueryPlan{
+			queryPlanBase: queryPlanBase{
 				collection: c,
+				query: query,
 			},
-			queryParts: query.Parts(),
 		}, nil
 	}
 
 	return resultScanQueryPlan{
-		defaultQueryPlan: defaultQueryPlan{
+		queryPlanBase: queryPlanBase{
 			collection: c,
+			query: query,
 		},
 		index: index,
-		query: query,
 	}, nil
 }
 
@@ -319,7 +318,6 @@ func (c *collection) findIndex(query Query) Index {
 	return cIndex
 }
 
-// Get returns the data for the given key or nil if not found
 func (c *collection) Get(key Reference) (*Document, error) {
 	var err error
 	var data []byte
@@ -346,5 +344,5 @@ func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
 	if bucket == nil {
 		return nil
 	}
-	return bucket.Bucket([]byte(documentCollection))
+	return bucket.Bucket(documentCollectionByteRef())
 }
