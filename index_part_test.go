@@ -27,40 +27,31 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewJSONIndexPart(t *testing.T) {
+func TestNewIndexPart(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path", nil, nil)
+		ip := NewFieldIndexer("path", AliasOption("name"))
 
-		jip, ok := ip.(jsonIndexPart)
+		jip, ok := ip.(fieldIndexer)
 
 		if !assert.True(t, ok) {
 			return
 		}
-		assert.Equal(t, "name", jip.name)
-		assert.Equal(t, "path", jip.jsonPath)
+		assert.Equal(t, "name", jip.Name())
+		assert.Equal(t, "path", jip.path)
 	})
 }
 
 func TestJsonIndexPart_Name(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path", nil, nil)
+	t.Run("ok - by alias", func(t *testing.T) {
+		ip := NewFieldIndexer("path", AliasOption("name"))
 
 		assert.Equal(t, "name", ip.Name())
 	})
-}
 
-func TestJsonIndexPart_pathParts(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", nil, nil)
+	t.Run("ok - by path", func(t *testing.T) {
+		ip := NewFieldIndexer("path")
 
-		jip, ok := ip.(jsonIndexPart)
-
-		if !assert.True(t, ok) {
-			return
-		}
-		assert.Len(t, jip.pathParts(), 2)
-		assert.Equal(t, "path", jip.pathParts()[0])
-		assert.Equal(t, "part", jip.pathParts()[1])
+		assert.Equal(t, "path", ip.Name())
 	})
 }
 
@@ -76,10 +67,11 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	}
 }
 `
+	document := Document{raw: []byte(json)}
 
 	t.Run("ok - sub object", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", nil, nil)
-		keys, err := ip.Keys([]byte(json))
+		ip := NewFieldIndexer("path.part")
+		keys, err := ip.Keys(document)
 
 		if !assert.NoError(t, err) {
 			return
@@ -93,8 +85,8 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - sub sub object", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.more.parts", nil, nil)
-		keys, err := ip.Keys([]byte(json))
+		ip := NewFieldIndexer("path.more.#.parts")
+		keys, err := ip.Keys(document)
 
 		if !assert.NoError(t, err) {
 			return
@@ -111,8 +103,8 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - list", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.parts", nil, nil)
-		keys, err := ip.Keys([]byte(json))
+		ip := NewFieldIndexer("path.parts")
+		keys, err := ip.Keys(document)
 
 		if !assert.NoError(t, err) {
 			return
@@ -127,8 +119,8 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("ok - no match", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.party", nil, nil)
-		keys, err := ip.Keys([]byte(json))
+		ip := NewFieldIndexer("path.party")
+		keys, err := ip.Keys(document)
 
 		if !assert.NoError(t, err) {
 			return
@@ -138,8 +130,8 @@ func TestJsonIndexPart_Keys(t *testing.T) {
 	})
 
 	t.Run("error - incorrect document", func(t *testing.T) {
-		ip := NewJSONIndexPart("name", "path.part", nil, nil)
-		_, err := ip.Keys([]byte("}"))
+		ip := NewFieldIndexer("path.part")
+		_, err := ip.Keys(Document{raw: []byte("}")})
 
 		assert.Error(t, err)
 	})

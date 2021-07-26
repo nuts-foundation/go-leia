@@ -43,8 +43,8 @@ type Index interface {
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
 
-	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the IteratorFn.
-	Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error
+	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
+	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
 
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
@@ -53,24 +53,29 @@ type Index interface {
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
 	Sort(query Query, includeMissing bool) ([]QueryPart, error)
 
+	// QueryPartsOutsideIndex selects the queryParts that are not convered by the index.
+	QueryPartsOutsideIndex(query Query) ([]QueryPart, error)
+
 	// Depth returns the number of indexed fields
 	Depth() int
 }
 
-// IteratorFn defines a function that is used as a callback when an Iterate query finds results. The function is called for each result entry.
-type IteratorFn func(key []byte, value []byte) error
+// iteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
+// the key will be the indexed value and the value will contain an Entry
+type iteratorFn DocumentWalker
 
 // NewIndex creates a new blank index.
 // If multiple parts are given, a compound index is created.
-// This index is only useful if at least n-1 parts are used in the query.
-func NewIndex(name string, parts ...IndexPart) Index {
+func NewIndex(name string, parts ...FieldIndexer) Index {
 	return &index{
 		name:       name,
 		indexParts: parts,
 	}
 }
 
-type IndexPart interface {
+// FieldIndexer is the public interface that defines functions for a field index instruction.
+// A FieldIndexer is used when a document is indexed.
+type FieldIndexer interface {
 	// Name is used for matching against a Query
 	Name() string
 	// Keys returns the keys that matched this document. Multiple keys are combined by the index
@@ -84,7 +89,7 @@ type IndexPart interface {
 
 type index struct {
 	name       string
-	indexParts []IndexPart
+	indexParts []FieldIndexer
 }
 
 func (i *index) Name() string {
@@ -105,7 +110,7 @@ func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
 }
 
 // addDocumentR, like Add but recursive
-func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
+func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -137,7 +142,7 @@ func addDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Referen
 }
 
 // addDocumentR, like Add but recursive
-func removeDocumentR(bucket *bbolt.Bucket, parts []IndexPart, cKey Key, ref Reference, doc Document) error {
+func removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -277,7 +282,31 @@ outer:
 	return sorted, nil
 }
 
-func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error {
+func (i *index) QueryPartsOutsideIndex(query Query) ([]QueryPart, error) {
+	hits := 0
+	parts, err := i.Sort(query, true)
+	if err != nil {
+		return nil, err
+	}
+
+outer:
+	for _, qp := range parts {
+		for _, ip := range i.indexParts {
+			if ip.Name() == qp.Name() {
+				hits++
+				continue outer
+			}
+		}
+	}
+
+	if hits == len(parts) {
+		return []QueryPart{}, nil
+	}
+
+	return parts[hits:], nil
+}
+
+func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error {
 	var err error
 
 	cBucket := bucket.Bucket(i.BucketName())
@@ -301,7 +330,7 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn IteratorFn) error 
 		}
 		for _, token := range i.indexParts[j].Tokenize(seek) {
 			seek = KeyOf(i.indexParts[j].Transform(token))
-			terms= append(terms, seek)
+			terms = append(terms, seek)
 		}
 		matchers[j] = matcher{
 			queryPart: cPart,
@@ -319,7 +348,7 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn IteratorFn) error {
+func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) error {
 	var err error
 	cPart := matchers[0].queryPart
 	for _, seek := range matchers[0].terms {

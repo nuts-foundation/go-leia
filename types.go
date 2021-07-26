@@ -20,8 +20,6 @@
 package leia
 
 import (
-	"bytes"
-	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -30,79 +28,6 @@ import (
 
 const boltDBFileMode = 0600
 const KeyDelimiter = 0x10
-const collectionBucket = "_leia"
-
-// Document represents a JSON document in []byte format
-type Document []byte
-
-// String returns the document in string format
-func (d Document) String() string {
-	return string(d)
-}
-
-// Reference returns the reference of the document
-func (d Document) Reference() Reference {
-	return NewReference(d)
-}
-
-// Key is used as DB key type
-type Key []byte
-
-// KeyOf creates a key from an interface
-func KeyOf(value interface{}) Key {
-	switch value.(type) {
-	case string:
-		return []byte(value.(string))
-	case []byte:
-		return value.([]byte)
-	case Key:
-		return value.(Key)
-	}
-	return nil
-}
-
-// String returns the string representation, only useful if a Key represents readable bytes
-func (k Key) String() string {
-	return string(k)
-}
-
-// todo: determine delimiter byte: data link escape character: 0x10
-// ComposeKey creates a new key from two keys
-func ComposeKey(current Key, additional Key) Key {
-	if len(current) == 0 {
-		return additional
-	}
-
-	c := current.Split()
-	b := make([][]byte, len(c))
-	for i, k := range c {
-		b[i] = k
-	}
-
-	b = append(b, additional)
-	return bytes.Join(b, []byte{KeyDelimiter})
-}
-
-// Split splits a compound key into parts
-func (k Key) Split() []Key {
-	s := bytes.Split(k, []byte{KeyDelimiter})
-	var nk = make([]Key, len(s))
-
-	for i, si := range s {
-		nk[i] = si
-	}
-
-	return nk
-}
-
-// NewReference calculates the sha256 of a piece of data and returns it as reference type
-func NewReference(data []byte) Reference {
-	s := sha256.Sum256(data)
-	var b = make([]byte, 32)
-	copy(b, s[:])
-
-	return b
-}
 
 // Reference equals a document hash. In an index, the values are references to docs.
 type Reference []byte

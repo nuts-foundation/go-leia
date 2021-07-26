@@ -21,7 +21,11 @@ package leia
 
 import (
 	"bytes"
+	"errors"
 )
+
+// ErrNoQuery is returned when an empty query is given
+var ErrNoQuery = errors.New("no query given")
 
 type Query interface {
 	// And adds a condition to query on
@@ -33,7 +37,7 @@ type Query interface {
 
 type QueryPart interface {
 
-	// Name returns the name that matches the index part
+	// Name returns the name that matches fieldIndexer.Name() so actually the alias or JSON path
 	Name() string
 
 	// Seek returns the key for cursor.Seek
@@ -134,8 +138,17 @@ func (r rangePart) Seek() (Key, error) {
 	return toBytes(r.begin)
 }
 
-func (r rangePart) Condition(key Key, _ Transform) (bool, error) {
-	b, err := toBytes(r.begin)
+func (r rangePart) Condition(key Key, transform Transform) (bool, error) {
+	bTransformed := r.begin
+	if transform != nil {
+		bTransformed = transform(r.begin)
+	}
+	eTransformed := r.end
+	if transform != nil {
+		eTransformed = transform(r.end)
+	}
+
+	b, err := toBytes(bTransformed)
 	if err != nil {
 		return false, err
 	}
@@ -145,11 +158,11 @@ func (r rangePart) Condition(key Key, _ Transform) (bool, error) {
 		return false, nil
 	}
 
-	b, err = toBytes(r.end)
+	e, err := toBytes(eTransformed)
 	if err != nil {
 		return false, err
 	}
-	return bytes.Compare(key, b) <= 0, nil
+	return bytes.Compare(key, e) <= 0, nil
 }
 
 type prefixPart struct {
@@ -178,4 +191,3 @@ func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
 
 	return bytes.HasPrefix(key, prefix), nil
 }
-

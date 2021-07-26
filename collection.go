@@ -20,7 +20,7 @@
 package leia
 
 import (
-	"crypto/sha256"
+	"crypto/sha1"
 	"errors"
 
 	"go.etcd.io/bbolt"
@@ -28,6 +28,17 @@ import (
 
 // ErrNoIndex is returned when no index is found to query against
 var ErrNoIndex = errors.New("no index found")
+
+// DocumentWalker defines a function that is used as a callback for matching documents.
+// The key will be the document Reference (hash) and the value will be the raw document bytes
+type DocumentWalker func(key Reference, value []byte) error
+
+// documentCollection is the bucket that stores all the documents for a collection
+const documentCollection = "_documents"
+
+func documentCollectionByteRef() []byte {
+	return []byte(documentCollection)
+}
 
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
@@ -38,41 +49,42 @@ type Collection interface {
 	DropIndex(name string) error
 	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
-	// Get returns a document by reference
-	Get(ref Reference) (Document, error)
+	// Get returns the data for the given key or nil if not found
+	Get(ref Reference) (*Document, error)
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
 	// returns ErrNoIndex when no suitable index can be found
 	Find(query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
-	Reference(doc Document) (Reference, error)
-	// Iterate over matching key/value pairs.
+	Reference(doc Document) Reference
+	// Iterate over documents that match the given query
+	Iterate(query Query, walker DocumentWalker) error
+	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
-	Iterate(query Query, fn IteratorFn) error
+	IndexIterate(query Query, fn ReferenceScanFn) error
 }
 
 // ReferenceFunc is the func type used for creating references.
 // references are the key under which a document is stored.
 // a ReferenceFunc could be the sha256 func or something that stores document in chronological order.
 // The first would be best for random access, the latter for chronological access
-type ReferenceFunc func(doc Document) (Reference, error)
+type ReferenceFunc func(doc Document) Reference
 
 // default for shasum docs
-func defaultReferenceCreator(doc Document) (Reference, error) {
-	s := sha256.Sum256(doc)
-	var b = make([]byte, 32)
+func defaultReferenceCreator(doc Document) Reference {
+	s := sha1.Sum(doc.raw)
+	var b = make([]byte, len(s))
 	copy(b, s[:])
 
-	return b, nil
+	return b
 }
 
 type collection struct {
-	Name             string `json:"name"`
-	db               *bbolt.DB
-	globalCollection *collection
-	IndexList        []Index `json:"indices"`
-	refMake          ReferenceFunc
+	Name      string `json:"name"`
+	db        *bbolt.DB
+	IndexList []Index `json:"indices"`
+	refMake   ReferenceFunc
 }
 
 func (c *collection) AddIndex(index Index) error {
@@ -93,14 +105,14 @@ func (c *collection) AddIndex(index Index) error {
 			return nil
 		}
 
-		gBucket, err := tx.CreateBucketIfNotExists([]byte(GlobalCollection))
+		gBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
 		if err != nil {
 			return err
 		}
 
 		cur := gBucket.Cursor()
 		for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-			index.Add(bucket, ref, doc)
+			index.Add(bucket, ref, Document{raw: doc})
 		}
 
 		return nil
@@ -135,7 +147,7 @@ func (c *collection) DropIndex(name string) error {
 	})
 }
 
-func (c *collection) Reference(doc Document) (Reference, error) {
+func (c *collection) Reference(doc Document) Reference {
 	return c.refMake(doc)
 }
 
@@ -153,11 +165,13 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 		return err
 	}
 
+	docBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
+	if err != nil {
+		return err
+	}
+
 	for _, doc := range jsonSet {
-		ref, err := c.refMake(doc)
-		if err != nil {
-			return err
-		}
+		ref := c.refMake(doc)
 
 		// indices
 		// buckets are cached within tx
@@ -168,13 +182,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 			}
 		}
 
-		if c.isGlobal() {
-			bucket.Put(ref, doc)
-		}
-	}
-
-	if c.isNotGlobal() {
-		err = c.globalCollection.add(tx, jsonSet)
+		err = docBucket.Put(ref, doc.raw)
 		if err != nil {
 			return err
 		}
@@ -183,116 +191,48 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 	return nil
 }
 
-func (c *collection) isNotGlobal() bool {
-	return c != c.globalCollection && c.globalCollection != nil
-}
-
-func (c *collection) isGlobal() bool {
-	return c.Name == GlobalCollection
-}
-
 func (c *collection) Find(query Query) ([]Document, error) {
-	var docs []Document
-
-	// todo:
-	// construct a query plan
-	// IScan
-	// doc collector
-	// ResultScan
-
-	i := c.findIndex(query)
-	if i == nil {
-		return nil, ErrNoIndex
-	}
-
-	sortedQueryParts, err := i.Sort(query, true)
-
-	// the iteratorFn that collects results in a slice
-	refMap := map[string]bool{}
-	var newRef = make([]Reference, 0)
-	var refFn = func(key []byte, value []byte) error {
-		refs, err := entryToSlice(value)
-		if err != nil {
-			return err
-		}
-		for _, r := range refs {
-			if _, b := refMap[r.EncodeToString()]; !b {
-				refMap[r.EncodeToString()] = true
-				newRef = append(newRef, r)
-			}
-		}
+	docs := make([]Document, 0)
+	walker := func(key Reference, value []byte) error {
+		docs = append(docs, DocumentFromBytes(value))
 		return nil
 	}
 
-	// do the IndexScan
-	if err := c.Iterate(query, refFn); err != nil {
+	if err := c.Iterate(query, walker); err != nil {
 		return nil, err
 	}
 
-	err = c.db.View(func(tx *bbolt.Tx) (err error) {
-		docs = make([]Document, len(newRef))
-		for i, r := range newRef {
-			docs[i], err = c.globalCollection.Get(r)
-			if err != nil {
-				return
-			}
-		}
-		return
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// do additional checks for referenced docs
-	// This will be the future ResultScan
-	if len(sortedQueryParts) > i.Depth() {
-		// pointer to in place slice replacement
-		j := 0
-		for _, doc := range docs {
-			match := true
-			outer:
-			for _, part := range sortedQueryParts[i.Depth():] {
-				// name must equal the json path for an unknown query part
-				ip := jsonIndexPart{jsonPath: part.Name()}
-				keys, err := ip.Keys(doc)
-				if err != nil {
-					return nil, err
-				}
-				for _, k := range keys {
-					m, err := part.Condition(k, nil)
-					if err != nil {
-						return nil, err
-					}
-					if m {
-						continue outer
-					}
-				}
-				match = false
-			}
-			if match {
-				docs[j] = doc
-				j++
-			}
-		}
-		docs = docs[:j]
-	}
-
-	return docs, err
+	return docs, nil
 }
 
-func (c *collection) Iterate(query Query, fn IteratorFn) error {
-	i := c.findIndex(query)
+func (c *collection) Iterate(query Query, fn DocumentWalker) error {
+	plan, err := c.queryPlan(query)
+	if err != nil {
+		return err
+	}
+	if err = plan.execute(fn); err != nil {
+		return err
+	}
 
-	if i == nil {
+	return nil
+}
+
+// IndexIterate uses a query to loop over all keys and Entries in an index. It skips the resultScan and collect phase
+func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
+	index := c.findIndex(query)
+	if index == nil {
 		return ErrNoIndex
 	}
 
-	return c.db.View(func(tx *bbolt.Tx) error {
-		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(c.Name))
+	plan := indexScanQueryPlan{
+		queryPlanBase: queryPlanBase{
+			collection: c,
+			query:      query,
+		},
+		index: index,
+	}
 
-		return i.Iterate(iBucket, query, fn)
-	})
+	return plan.execute(fn)
 }
 
 // Delete a document from the store, this also removes the entries from indices
@@ -304,32 +244,56 @@ func (c *collection) Delete(doc Document) error {
 }
 
 func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	iBucket := tx.Bucket([]byte(c.Name))
-	if iBucket == nil {
+	bucket := tx.Bucket([]byte(c.Name))
+	if bucket == nil {
 		return nil
 	}
 
-	ref, err := c.refMake(doc)
+	ref := c.refMake(doc)
+
+	docBucket := c.documentBucket(tx)
+	if docBucket == nil {
+		return nil
+	}
+	err := docBucket.Delete(ref)
 	if err != nil {
 		return err
 	}
 
-	if c.isNotGlobal() {
-		err = c.globalCollection.delete(tx, doc)
-		if err != nil {
-			return err
-		}
-	}
-
 	// indices
 	for _, i := range c.IndexList {
-		err = i.Delete(iBucket, ref, doc)
+		err = i.Delete(bucket, ref, doc)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (c *collection) queryPlan(query Query) (queryPlan, error) {
+	if query == nil {
+		return nil, ErrNoQuery
+	}
+
+	index := c.findIndex(query)
+
+	if index == nil {
+		return fullTableScanQueryPlan{
+			queryPlanBase: queryPlanBase{
+				collection: c,
+				query:      query,
+			},
+		}, nil
+	}
+
+	return resultScanQueryPlan{
+		queryPlanBase: queryPlanBase{
+			collection: c,
+			query:      query,
+		},
+		index: index,
+	}, nil
 }
 
 // find a matching index.
@@ -355,17 +319,31 @@ func (c *collection) findIndex(query Query) Index {
 	return cIndex
 }
 
-// Get returns the data for the given key or nil if not found
-func (c *collection) Get(key Reference) (Document, error) {
+func (c *collection) Get(key Reference) (*Document, error) {
 	var err error
 	var data []byte
 
 	err = c.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(GlobalCollection))
+		bucket := c.documentBucket(tx)
+		if bucket == nil {
+			return nil
+		}
 
 		data = bucket.Get(key)
 		return nil
 	})
 
-	return data, err
+	if data == nil {
+		return nil, nil
+	}
+
+	return &Document{raw: data}, err
+}
+
+func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	bucket := tx.Bucket([]byte(c.Name))
+	if bucket == nil {
+		return nil
+	}
+	return bucket.Bucket(documentCollectionByteRef())
 }
