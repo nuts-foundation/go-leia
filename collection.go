@@ -44,7 +44,7 @@ func documentCollectionByteRef() []byte {
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
 	// If you want to override an index (by name) drop it first.
-	AddIndex(index... Index) error
+	AddIndex(index ...Index) error
 	// DropIndex by name
 	DropIndex(name string) error
 	// Add a set of documents to this collection
@@ -87,7 +87,7 @@ type collection struct {
 	refMake   ReferenceFunc
 }
 
-func (c *collection) AddIndex(indexes... Index) error {
+func (c *collection) AddIndex(indexes ...Index) error {
 	for _, index := range indexes {
 		for _, i := range c.IndexList {
 			if i.Name() == index.Name() {
