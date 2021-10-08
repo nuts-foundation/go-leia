@@ -44,7 +44,7 @@ func documentCollectionByteRef() []byte {
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
 	// If you want to override an index (by name) drop it first.
-	AddIndex(index Index) error
+	AddIndex(index... Index) error
 	// DropIndex by name
 	DropIndex(name string) error
 	// Add a set of documents to this collection
@@ -87,40 +87,42 @@ type collection struct {
 	refMake   ReferenceFunc
 }
 
-func (c *collection) AddIndex(index Index) error {
-	for _, i := range c.IndexList {
-		if i.Name() == index.Name() {
-			return nil
+func (c *collection) AddIndex(indexes... Index) error {
+	for _, index := range indexes {
+		for _, i := range c.IndexList {
+			if i.Name() == index.Name() {
+				return nil
+			}
 		}
-	}
 
-	if err := c.db.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
-		if err != nil {
+		if err := c.db.Update(func(tx *bbolt.Tx) error {
+			bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+			if err != nil {
+				return err
+			}
+
+			// skip existing
+			if b := bucket.Bucket(index.BucketName()); b != nil {
+				return nil
+			}
+
+			gBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
+			if err != nil {
+				return err
+			}
+
+			cur := gBucket.Cursor()
+			for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
+				index.Add(bucket, ref, Document{raw: doc})
+			}
+
+			return nil
+		}); err != nil {
 			return err
 		}
 
-		// skip existing
-		if b := bucket.Bucket(index.BucketName()); b != nil {
-			return nil
-		}
-
-		gBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
-		if err != nil {
-			return err
-		}
-
-		cur := gBucket.Cursor()
-		for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-			index.Add(bucket, ref, Document{raw: doc})
-		}
-
-		return nil
-	}); err != nil {
-		return err
+		c.IndexList = append(c.IndexList, index)
 	}
-
-	c.IndexList = append(c.IndexList, index)
 
 	return nil
 }

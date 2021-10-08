@@ -46,7 +46,7 @@ func main() {
 		}
 	}()
 
-	s, err := leia.NewStore(path.Join(dir, "documents.db"))
+	s, err := leia.NewStore(path.Join(dir, "documents.db"), false)
 	if err != nil {
 		panic(err)
 	}
