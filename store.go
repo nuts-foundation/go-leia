@@ -42,7 +42,7 @@ type store struct {
 }
 
 // NewStore creates a new store.
-// the noSync option disables file sync, ideal for testing
+// the noSync option disables flushing to disk, ideal for testing and bulk loading
 func NewStore(dbFile string, noSync bool) (Store, error) {
 	err := os.MkdirAll(filepath.Dir(dbFile), os.ModePerm)
 	if err != nil {
