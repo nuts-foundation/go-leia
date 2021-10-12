@@ -29,7 +29,7 @@ import (
 func TestNewStore(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		f := filepath.Join(testDirectory(t), "test.db")
-		s, err := NewStore(f)
+		s, err := NewStore(f, true)
 
 		if !assert.NoError(t, err) {
 			return
@@ -39,7 +39,7 @@ func TestNewStore(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		_, err := NewStore("store_test.go")
+		_, err := NewStore("store_test.go", true)
 
 		assert.Error(t, err)
 	})
@@ -47,7 +47,7 @@ func TestNewStore(t *testing.T) {
 
 func TestStore_Collection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
-	s, _ := NewStore(f)
+	s, _ := NewStore(f, true)
 
 	c := s.Collection("test")
 

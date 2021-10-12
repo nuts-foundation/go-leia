@@ -42,13 +42,17 @@ type store struct {
 }
 
 // NewStore creates a new store.
-func NewStore(dbFile string) (Store, error) {
+// the noSync option disables flushing to disk, ideal for testing and bulk loading
+func NewStore(dbFile string, noSync bool) (Store, error) {
 	err := os.MkdirAll(filepath.Dir(dbFile), os.ModePerm)
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := bbolt.Open(dbFile, boltDBFileMode, bbolt.DefaultOptions)
+	options := *bbolt.DefaultOptions
+	options.NoSync = noSync
+
+	db, err := bbolt.Open(dbFile, boltDBFileMode, &options)
 	if err != nil {
 		return nil, err
 	}
