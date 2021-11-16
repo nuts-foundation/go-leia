@@ -126,6 +126,10 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 			key := ComposeKey(cKey, m)
 			_ = addRefToBucket(bucket, key, ref)
 		}
+		if len(matches) == 0 {
+			key := ComposeKey(cKey, []byte{})
+			_ = addRefToBucket(bucket, key, ref)
+		}
 		return nil
 	}
 
@@ -138,6 +142,12 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 	}
 
 	// no matches for the document and this part of the index
+	// add key with an empty byte slice as value
+	if len(matches) == 0 {
+		nKey := ComposeKey(cKey, []byte{})
+		return addDocumentR(bucket, parts[1:], nKey, ref, doc)
+	}
+
 	return nil
 }
 

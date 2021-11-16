@@ -36,6 +36,8 @@ func TestNewIndex(t *testing.T) {
 func TestIndex_AddJson(t *testing.T) {
 	doc := DocumentFromString(jsonExample)
 	ref := defaultReferenceCreator(doc)
+	doc2 := DocumentFromString(jsonExample2)
+	ref2 := defaultReferenceCreator(doc2)
 	db := testDB(t)
 
 	t.Run("ok - value added as key to document reference", func(t *testing.T) {
@@ -83,8 +85,6 @@ func TestIndex_AddJson(t *testing.T) {
 			NewFieldIndexer("path.part", AliasOption("key")),
 			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
 		)
-		doc2 := DocumentFromString(jsonExample2)
-		ref2 := defaultReferenceCreator(doc2)
 
 		db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -122,6 +122,24 @@ func TestIndex_AddJson(t *testing.T) {
 		})
 
 		assertIndexSize(t, db, i, 0)
+	})
+
+	t.Run("ok - value added with nil index value", func(t *testing.T) {
+		i := NewIndex(t.Name(),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.unknown", AliasOption("key2")),
+		)
+
+		db.Update(func(tx *bbolt.Tx) error {
+			_ = i.Add(testBucket(t, tx), ref, doc)
+			return i.Add(testBucket(t, tx), ref2, doc2)
+		})
+
+		key := ComposeKey(Key("value"), []byte{})
+
+		assertIndexed(t, db, i, key, ref)
+		assertIndexed(t, db, i, key, ref2)
+		assertIndexSize(t, db, i, 1)
 	})
 }
 
@@ -350,6 +368,42 @@ func TestIndex_Find(t *testing.T) {
 		assert.NoError(t, err)
 		// it's a triple index where 4 matching trees exist
 		assert.Equal(t, 4, count)
+	})
+
+	t.Run("ok - match with nil values at multiple levels", func(t *testing.T) {
+		db := testDB(t)
+
+		i := NewIndex(t.Name(),
+			NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+			NewFieldIndexer("path.unknown", AliasOption("key2")),
+			NewFieldIndexer("path.unknown2", AliasOption("key3")),
+		)
+
+		db.Update(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			_ = i.Add(b, ref, doc)
+			return i.Add(b, ref2, doc2)
+		})
+
+		q := New(Eq("key", "value"))
+
+		count := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
+				var entry Entry
+				if err := entry.Unmarshal(value); err != nil {
+					return err
+				}
+				count = count + len(entry.Slice())
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		// it's a triple index where 4 matching trees exist
+		assert.Equal(t, 2, count)
 	})
 
 	t.Run("error - wrong query", func(t *testing.T) {
