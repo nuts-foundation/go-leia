@@ -20,6 +20,7 @@
 package leia
 
 import (
+	"context"
 	"crypto/sha1"
 	"errors"
 
@@ -55,7 +56,9 @@ type Collection interface {
 	Delete(doc Document) error
 	// Find queries the collection for documents
 	// returns ErrNoIndex when no suitable index can be found
-	Find(query Query) ([]Document, error)
+	// returns context errors when the context has been cancelled or deadline has exceeded.
+	// passing ctx prevents adding too many records to the result set.
+	Find(ctx context.Context, query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
 	Reference(doc Document) Reference
 	// Iterate over documents that match the given query
@@ -193,9 +196,14 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 	return nil
 }
 
-func (c *collection) Find(query Query) ([]Document, error) {
+func (c *collection) Find(ctx context.Context, query Query) ([]Document, error) {
 	docs := make([]Document, 0)
 	walker := func(key Reference, value []byte) error {
+		// stop iteration when needed
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		docs = append(docs, DocumentFromBytes(value))
 		return nil
 	}

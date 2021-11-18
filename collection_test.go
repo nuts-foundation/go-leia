@@ -20,8 +20,10 @@
 package leia
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
@@ -169,7 +171,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -184,7 +186,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Eq("non_indexed", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -199,7 +201,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("non_indexed", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -214,7 +216,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Range("non_indexed", "v", "value1"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -229,7 +231,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Range("non_indexed", "value1", "value2"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -244,7 +246,7 @@ func TestCollection_Find(t *testing.T) {
 		c.AddIndex(i)
 		q := New(Eq("key", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -259,7 +261,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", struct{}{}))
 
-		_, err := c.Find(q)
+		_, err := c.Find(context.TODO(), q)
 
 		assert.Error(t, err)
 	})
@@ -269,9 +271,42 @@ func TestCollection_Find(t *testing.T) {
 		c.AddIndex(i)
 		c.Add([]Document{exampleDoc})
 
-		_, err := c.Find(nil)
+		_, err := c.Find(context.TODO(), nil)
 
 		assert.Error(t, err)
+	})
+
+	t.Run("error - ctx cancelled", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value"))
+		ctx, cancelFn := context.WithCancel(context.Background())
+
+		cancelFn()
+		_, err := c.Find(ctx, q)
+
+		if !assert.Error(t, err) {
+			return
+		}
+
+		assert.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("error - deadline exceeded", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value"))
+		ctx, _ := context.WithTimeout(context.Background(), time.Nanosecond)
+
+		_, err := c.Find(ctx, q)
+
+		if !assert.Error(t, err) {
+			return
+		}
+
+		assert.Equal(t, context.DeadlineExceeded, err)
 	})
 }
 
