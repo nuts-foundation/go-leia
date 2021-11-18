@@ -193,79 +193,23 @@ func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
 func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 	// first check if there's a sub-bucket
-	subBucket, _ := bucket.CreateBucketIfNotExists(key)
-	if subBucket != nil {
-		subBucket.FillPercent = 0.9
-		return subBucket.Put(ref, []byte{})
-	}
-
-	entryBytes := bucket.Get(key)
-	var entry Entry
-
-	if len(entryBytes) == 0 {
-		entry = EntryFrom(ref)
-	} else {
-		if err := entry.Unmarshal(entryBytes); err != nil {
-			return err
-		}
-		entry.Add(ref)
-	}
-
-	// check size, if > 16 change storage to a sub-bucket
-	if entry.Size() >= 16 {
-		bucket.Delete(key)
-		subBucket, err := bucket.CreateBucket(key)
-		if err != nil {
-			return err
-		}
-		subBucket.FillPercent = 0.9
-		for _, e := range entry.Slice() {
-			if err = subBucket.Put(e, []byte{}); err != nil {
-				return err
-			}
-		}
-		return nil
-	}
-
-	iBytes, err := entry.Marshal()
+	subBucket, err := bucket.CreateBucketIfNotExists(key)
 	if err != nil {
 		return err
 	}
-
-	return bucket.Put(key, iBytes)
+	subBucket.FillPercent = 0.9
+	return subBucket.Put(ref, []byte{})
 }
 
 // removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
 func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 	// first check if there's a sub-bucket
-	subBucket := bucket.Bucket(key)
-	if subBucket != nil {
-		subBucket.FillPercent = 0.9
-		return subBucket.Delete(ref)
-	}
-
-	entryBytes := bucket.Get(key)
-	var entry Entry
-
-	if len(entryBytes) == 0 {
-		return nil
-	}
-
-	if err := entry.Unmarshal(entryBytes); err != nil {
-		return err
-	}
-	entry.Delete(ref)
-
-	if entry.Size() == 0 {
-		return bucket.Delete(key)
-	}
-
-	iBytes, err := entry.Marshal()
+	subBucket, err := bucket.CreateBucketIfNotExists(key)
 	if err != nil {
 		return err
 	}
-
-	return bucket.Put(key, iBytes)
+	subBucket.FillPercent = 0.9
+	return subBucket.Delete(ref)
 }
 
 func (i *index) IsMatch(query Query) float64 {
@@ -413,7 +357,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 					nKey := ComposeKey(sKey, newp)
 					err = findR(cursor, nKey, matchers[1:], fn)
 				} else {
-					// value found call iterator function
+					// sub-bucket found, call iterator function
 					subBucket := cursor.Bucket().Bucket(cKey)
 					if subBucket != nil {
 						subCursor := subBucket.Cursor()
@@ -433,17 +377,4 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 	}
 
 	return nil
-}
-
-func entryToSlice(eBytes []byte) ([]Reference, error) {
-	if eBytes == nil {
-		return nil, nil
-	}
-
-	var entry Entry
-	if err := entry.Unmarshal(eBytes); err != nil {
-		return nil, err
-	}
-
-	return entry.Slice(), nil
 }
