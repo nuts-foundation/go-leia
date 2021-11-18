@@ -120,16 +120,11 @@ func assertIndexed(t *testing.T, db *bbolt.DB, i Index, key []byte, ref Referenc
 	err := db.View(func(tx *bbolt.Tx) error {
 		b := testBucket(t, tx)
 		b = b.Bucket(i.BucketName())
-		e := b.Get(key)
+		sub := b.Bucket(key)
 
-		refs, err := entryToSlice(e)
-
-		if err != nil {
-			return err
-		}
-
-		for _, r := range refs {
-			if bytes.Compare(ref, r) == 0 {
+		cursor := sub.Cursor()
+		for k, _ := cursor.Seek([]byte{}); k != nil; k, _ = cursor.Next() {
+			if bytes.Compare(ref, k) == 0 {
 				return nil
 			}
 		}
@@ -152,8 +147,18 @@ func assertIndexSize(t *testing.T, db *bbolt.DB, i Index, size int) bool {
 			}
 			return errors.New("empty bucket")
 		}
+		count := 0
+		// loop over sub-buckets
+		cursor := b.Cursor()
+		for k, _ := cursor.Seek([]byte{}); k != nil; k, _ = cursor.Next() {
+			subBucket := b.Bucket(k)
+			subCursor := subBucket.Cursor()
+			for k2, _ := subCursor.Seek([]byte{}); k2 != nil; k2, _ = subCursor.Next() {
+				count++
+			}
+		}
 
-		assert.Equal(t, size, b.Stats().KeyN)
+		assert.Equal(t, size, count)
 		return nil
 	})
 

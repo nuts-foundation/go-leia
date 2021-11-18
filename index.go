@@ -44,6 +44,7 @@ type Index interface {
 	IsMatch(query Query) float64
 
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
+	// it will not filter out double values
 	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
 
 	// BucketName returns the bucket name for this index
@@ -191,6 +192,13 @@ func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error 
 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
 func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
+	// first check if there's a sub-bucket
+	subBucket, _ := bucket.CreateBucketIfNotExists(key)
+	if subBucket != nil {
+		subBucket.FillPercent = 0.9
+		return subBucket.Put(ref, []byte{})
+	}
+
 	entryBytes := bucket.Get(key)
 	var entry Entry
 
@@ -203,6 +211,22 @@ func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 		entry.Add(ref)
 	}
 
+	// check size, if > 16 change storage to a sub-bucket
+	if entry.Size() >= 16 {
+		bucket.Delete(key)
+		subBucket, err := bucket.CreateBucket(key)
+		if err != nil {
+			return err
+		}
+		subBucket.FillPercent = 0.9
+		for _, e := range entry.Slice() {
+			if err = subBucket.Put(e, []byte{}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
 	iBytes, err := entry.Marshal()
 	if err != nil {
 		return err
@@ -213,6 +237,13 @@ func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 
 // removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
 func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
+	// first check if there's a sub-bucket
+	subBucket := bucket.Bucket(key)
+	if subBucket != nil {
+		subBucket.FillPercent = 0.9
+		return subBucket.Delete(ref)
+	}
+
 	entryBytes := bucket.Get(key)
 	var entry Entry
 
@@ -364,7 +395,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 	for _, seek := range matchers[0].terms {
 		seek = ComposeKey(sKey, seek)
 		condition := true
-		for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
+		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
 			if len(sKey) == 0 {
@@ -383,7 +414,13 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 					err = findR(cursor, nKey, matchers[1:], fn)
 				} else {
 					// value found call iterator function
-					err = fn(cKey, entry)
+					subBucket := cursor.Bucket().Bucket(cKey)
+					if subBucket != nil {
+						subCursor := subBucket.Cursor()
+						for k, _ := subCursor.Seek([]byte{}); k != nil; k, _ = subCursor.Next() {
+							err = fn(cKey, k)
+						}
+					}
 				}
 				if err != nil {
 					return err

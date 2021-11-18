@@ -98,7 +98,7 @@ func TestIndex_AddJson(t *testing.T) {
 		// check if both docs are indexed
 		assertIndexed(t, db, i, key, ref)
 		assertIndexed(t, db, i, key, ref2)
-		assertIndexSize(t, db, i, 2)
+		assertIndexSize(t, db, i, 3)
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
@@ -139,7 +139,7 @@ func TestIndex_AddJson(t *testing.T) {
 
 		assertIndexed(t, db, i, key, ref)
 		assertIndexed(t, db, i, key, ref2)
-		assertIndexSize(t, db, i, 1)
+		assertIndexSize(t, db, i, 2)
 	})
 }
 
@@ -392,11 +392,7 @@ func TestIndex_Find(t *testing.T) {
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
 			return i.Iterate(b, q, func(key Reference, value []byte) error {
-				var entry Entry
-				if err := entry.Unmarshal(value); err != nil {
-					return err
-				}
-				count = count + len(entry.Slice())
+				count++
 				return nil
 			})
 		})
@@ -417,5 +413,37 @@ func TestIndex_Find(t *testing.T) {
 		})
 
 		assert.Error(t, err)
+	})
+}
+
+func TestIndex_addRefToBucket(t *testing.T) {
+	t.Run("adding more than 16 entries", func(t *testing.T) {
+		db := testDB(t)
+
+		err := db.Update(func(tx *bbolt.Tx) error {
+			bucket := testBucket(t, tx)
+
+			for i := uint32(0); i < 16; i++ {
+				iBytes, _ := toBytes(i)
+				if err := addRefToBucket(bucket, []byte("key"), iBytes); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		})
+
+		assert.NoError(t, err)
+
+		// stats are not updated until after commit
+		db.View(func(tx *bbolt.Tx) error {
+			bucket := testBucket(t, tx)
+			b := bucket.Bucket([]byte("key"))
+
+			assert.NotNil(t, b)
+			assert.Equal(t, 16, b.Stats().KeyN)
+
+			return nil
+		})
 	})
 }

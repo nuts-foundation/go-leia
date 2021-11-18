@@ -143,7 +143,6 @@ func TestCollection_Delete(t *testing.T) {
 		}
 
 		assertIndexSize(t, db, i, 0)
-		// the index sub-bucket counts as 1
 		assertSize(t, db, documentCollection, 0)
 	})
 
@@ -287,24 +286,42 @@ func TestCollection_Iterate(t *testing.T) {
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
 
-		err := db.View(func(tx *bbolt.Tx) error {
-			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key Reference, value []byte) error {
-				count++
-				return nil
-			})
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			count++
+			return nil
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, count)
 	})
 
+	t.Run("ok - document indexed multiple times, query should un double", func(t *testing.T) {
+		doc := DocumentFromString(jsonExample)
+		doc2 := DocumentFromString(jsonExample2)
+		db := testDB(t)
+		count := 0
+
+		i := NewIndex(t.Name(),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
+		)
+
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{doc, doc2})
+
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			count++
+			return nil
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
 	t.Run("error", func(t *testing.T) {
-		err := db.View(func(tx *bbolt.Tx) error {
-			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key Reference, value []byte) error {
-				return errors.New("b00m!")
-			})
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			return errors.New("b00m!")
 		})
 
 		assert.Error(t, err)

@@ -43,14 +43,18 @@ func (r Reference) ByteSize() int {
 }
 
 func toBytes(data interface{}) ([]byte, error) {
-	switch data.(type) {
+	switch castData := data.(type) {
 	case []uint8:
-		return data.([]byte), nil
+		return castData, nil
+	case uint32:
+		var buf [4]byte
+		binary.BigEndian.PutUint32(buf[:], castData)
+		return buf[:], nil
 	case string:
-		return []byte(data.(string)), nil
+		return []byte(castData), nil
 	case float64:
 		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], math.Float64bits(data.(float64)))
+		binary.BigEndian.PutUint64(buf[:], math.Float64bits(castData))
 		return buf[:], nil
 	}
 
