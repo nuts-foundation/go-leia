@@ -197,18 +197,16 @@ func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 	if err != nil {
 		return err
 	}
-	subBucket.FillPercent = 0.9
 	return subBucket.Put(ref, []byte{})
 }
 
 // removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
 func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 	// first check if there's a sub-bucket
-	subBucket, err := bucket.CreateBucketIfNotExists(key)
-	if err != nil {
-		return err
+	subBucket := bucket.Bucket(key)
+	if subBucket == nil {
+		return nil
 	}
-	subBucket.FillPercent = 0.9
 	return subBucket.Delete(ref)
 }
 
@@ -348,33 +346,38 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
 
+			// check of current (partial) key still matches with query
 			condition, err = cPart.Condition(newp, matchers[0].transform)
 			if err != nil {
 				return err
 			}
 			if condition {
 				if len(matchers) > 1 {
+					// (partial) key still matches, continue to next index part
 					nKey := ComposeKey(sKey, newp)
 					err = findR(cursor, nKey, matchers[1:], fn)
 				} else {
-					// sub-bucket found, call iterator function
-					subBucket := cursor.Bucket().Bucket(cKey)
-					if subBucket != nil {
-						subCursor := subBucket.Cursor()
-						for k, _ := subCursor.Seek([]byte{}); k != nil; k, _ = subCursor.Next() {
-							err = fn(cKey, k)
-						}
-					}
+					// all index parts applied to key construction, retrieve results.
+					err = iterateOverDocuments(cursor, cKey, fn)
 				}
 				if err != nil {
 					return err
 				}
-			} else {
-				eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
-				_, _ = cursor.Seek(eKey)
 			}
 		}
 	}
+	return nil
+}
 
+func iterateOverDocuments(cursor *bbolt.Cursor, cKey []byte, fn iteratorFn) error {
+	subBucket := cursor.Bucket().Bucket(cKey)
+	if subBucket != nil {
+		subCursor := subBucket.Cursor()
+		for k, _ := subCursor.Seek([]byte{}); k != nil; k, _ = subCursor.Next() {
+			if err := fn(cKey, k); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
