@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -36,7 +37,7 @@ func main() {
 		leia.NewFieldIndexer("list.#.subList", leia.AliasOption("sublist"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
 	)
 
-	dir, err := ioutil.TempDir("go-leia", "options")
+	dir, err := ioutil.TempDir("", "options")
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +85,7 @@ func main() {
 		And(leia.Eq("list", "LIST.VAL16")).
 		And(leia.Eq("sublist", "SUBLIST.VAL16"))
 
-	j, err := c.Find(query)
+	j, err := c.Find(context.Background(), query)
 	if err != nil {
 		panic(err)
 	}
@@ -102,7 +103,7 @@ func main() {
 		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
 		And(leia.Range("sublist", "SUBLIST.VAL16", "SUBLIST.VAL17"))
 
-	j, err = c.Find(query2)
+	j, err = c.Find(context.Background(), query2)
 	if err != nil {
 		panic(err)
 	}
@@ -119,7 +120,7 @@ func main() {
 	query3 := leia.New(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
 		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
 
-	j, err = c.Find(query3)
+	j, err = c.Find(context.Background(), query3)
 	if err != nil {
 		panic(err)
 	}
@@ -130,7 +131,7 @@ func main() {
 		And(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
 		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
 
-	j, err = c.Find(query4)
+	j, err = c.Find(context.Background(), query4)
 	if err != nil {
 		panic(err)
 	}

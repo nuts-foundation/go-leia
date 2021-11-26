@@ -187,20 +187,15 @@ func resultScanner(queryParts []QueryPart, walker DocumentWalker) documentScanFn
 // indexEntryExpander creates a iteratorFn that expands an index Entry into multiple document references.
 // for each reference the ReferenceScanFn func is called.
 func indexEntryExpander(refScan ReferenceScanFn) iteratorFn {
-	// contains references that have already been processed
+	// refMap contains references that have already been processed
 	refMap := map[string]bool{}
 
 	return func(key Reference, value []byte) error {
-		refs, err := entryToSlice(value)
-		if err != nil {
-			return err
-		}
-		for _, r := range refs {
-			if _, b := refMap[r.EncodeToString()]; !b {
-				refMap[r.EncodeToString()] = true
-				if err := refScan(key, r); err != nil {
-					return err
-				}
+		ref := Reference(value)
+		if _, b := refMap[ref.EncodeToString()]; !b {
+			refMap[ref.EncodeToString()] = true
+			if err := refScan(key, ref); err != nil {
+				return err
 			}
 		}
 		return nil

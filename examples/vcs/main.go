@@ -20,6 +20,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -70,7 +71,7 @@ func main() {
 	query := leia.New(leia.Eq("subject", "did:nuts:subject_8")).
 		And(leia.Eq("resource", "/resource/15/8_9"))
 
-	j, err := c.Find(query)
+	j, err := c.Find(context.Background(), query)
 	if err != nil {
 		panic(err)
 	}

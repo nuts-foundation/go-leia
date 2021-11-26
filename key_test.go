@@ -49,6 +49,17 @@ func TestComposeKey(t *testing.T) {
 
 		assert.Equal(t, exp, k)
 	})
+
+	t.Run("ok - with empty keys", func(t *testing.T) {
+		k1 := Key("first")
+		k2 := Key([]byte{})
+		k3 := Key([]byte{})
+		exp := Key(fmt.Sprintf("first%c%c", KeyDelimiter, KeyDelimiter))
+
+		k := ComposeKey(ComposeKey(k1, k2), k3)
+
+		assert.Equal(t, exp, k)
+	})
 }
 
 func TestKey_Split(t *testing.T) {

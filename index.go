@@ -44,6 +44,7 @@ type Index interface {
 	IsMatch(query Query) float64
 
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
+	// it will not filter out double values
 	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
 
 	// BucketName returns the bucket name for this index
@@ -126,6 +127,10 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 			key := ComposeKey(cKey, m)
 			_ = addRefToBucket(bucket, key, ref)
 		}
+		if len(matches) == 0 {
+			key := ComposeKey(cKey, []byte{})
+			_ = addRefToBucket(bucket, key, ref)
+		}
 		return nil
 	}
 
@@ -138,6 +143,12 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 	}
 
 	// no matches for the document and this part of the index
+	// add key with an empty byte slice as value
+	if len(matches) == 0 {
+		nKey := ComposeKey(cKey, []byte{})
+		return addDocumentR(bucket, parts[1:], nKey, ref, doc)
+	}
+
 	return nil
 }
 
@@ -181,50 +192,22 @@ func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error 
 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
 func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
-	entryBytes := bucket.Get(key)
-	var entry Entry
-
-	if len(entryBytes) == 0 {
-		entry = EntryFrom(ref)
-	} else {
-		if err := entry.Unmarshal(entryBytes); err != nil {
-			return err
-		}
-		entry.Add(ref)
-	}
-
-	iBytes, err := entry.Marshal()
+	// first check if there's a sub-bucket
+	subBucket, err := bucket.CreateBucketIfNotExists(key)
 	if err != nil {
 		return err
 	}
-
-	return bucket.Put(key, iBytes)
+	return subBucket.Put(ref, []byte{})
 }
 
 // removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
 func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
-	entryBytes := bucket.Get(key)
-	var entry Entry
-
-	if len(entryBytes) == 0 {
+	// first check if there's a sub-bucket
+	subBucket := bucket.Bucket(key)
+	if subBucket == nil {
 		return nil
 	}
-
-	if err := entry.Unmarshal(entryBytes); err != nil {
-		return err
-	}
-	entry.Delete(ref)
-
-	if entry.Size() == 0 {
-		return bucket.Delete(key)
-	}
-
-	iBytes, err := entry.Marshal()
-	if err != nil {
-		return err
-	}
-
-	return bucket.Put(key, iBytes)
+	return subBucket.Delete(ref)
 }
 
 func (i *index) IsMatch(query Query) float64 {
@@ -354,7 +337,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 	for _, seek := range matchers[0].terms {
 		seek = ComposeKey(sKey, seek)
 		condition := true
-		for cKey, entry := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, entry = cursor.Next() {
+		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
 			if len(sKey) == 0 {
@@ -363,40 +346,38 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
 
+			// check of current (partial) key still matches with query
 			condition, err = cPart.Condition(newp, matchers[0].transform)
 			if err != nil {
 				return err
 			}
 			if condition {
 				if len(matchers) > 1 {
+					// (partial) key still matches, continue to next index part
 					nKey := ComposeKey(sKey, newp)
 					err = findR(cursor, nKey, matchers[1:], fn)
 				} else {
-					// value found call iterator function
-					err = fn(cKey, entry)
+					// all index parts applied to key construction, retrieve results.
+					err = iterateOverDocuments(cursor, cKey, fn)
 				}
 				if err != nil {
 					return err
 				}
-			} else {
-				eKey := ComposeKey(sKey, []byte{0xff, 0xff, 0xff, 0xff})
-				_, _ = cursor.Seek(eKey)
 			}
 		}
 	}
-
 	return nil
 }
 
-func entryToSlice(eBytes []byte) ([]Reference, error) {
-	if eBytes == nil {
-		return nil, nil
+func iterateOverDocuments(cursor *bbolt.Cursor, cKey []byte, fn iteratorFn) error {
+	subBucket := cursor.Bucket().Bucket(cKey)
+	if subBucket != nil {
+		subCursor := subBucket.Cursor()
+		for k, _ := subCursor.Seek([]byte{}); k != nil; k, _ = subCursor.Next() {
+			if err := fn(cKey, k); err != nil {
+				return err
+			}
+		}
 	}
-
-	var entry Entry
-	if err := entry.Unmarshal(eBytes); err != nil {
-		return nil, err
-	}
-
-	return entry.Slice(), nil
+	return nil
 }

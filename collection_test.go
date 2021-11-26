@@ -20,8 +20,10 @@
 package leia
 
 import (
+	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
@@ -143,7 +145,6 @@ func TestCollection_Delete(t *testing.T) {
 		}
 
 		assertIndexSize(t, db, i, 0)
-		// the index sub-bucket counts as 1
 		assertSize(t, db, documentCollection, 0)
 	})
 
@@ -170,7 +171,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -185,7 +186,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Eq("non_indexed", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -200,7 +201,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("non_indexed", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -215,7 +216,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Range("non_indexed", "v", "value1"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -230,7 +231,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", "value")).And(Range("non_indexed", "value1", "value2"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -245,7 +246,7 @@ func TestCollection_Find(t *testing.T) {
 		c.AddIndex(i)
 		q := New(Eq("key", "value"))
 
-		docs, err := c.Find(q)
+		docs, err := c.Find(context.TODO(), q)
 
 		if !assert.NoError(t, err) {
 			return
@@ -260,7 +261,7 @@ func TestCollection_Find(t *testing.T) {
 		c.Add([]Document{exampleDoc})
 		q := New(Eq("key", struct{}{}))
 
-		_, err := c.Find(q)
+		_, err := c.Find(context.TODO(), q)
 
 		assert.Error(t, err)
 	})
@@ -270,9 +271,42 @@ func TestCollection_Find(t *testing.T) {
 		c.AddIndex(i)
 		c.Add([]Document{exampleDoc})
 
-		_, err := c.Find(nil)
+		_, err := c.Find(context.TODO(), nil)
 
 		assert.Error(t, err)
+	})
+
+	t.Run("error - ctx cancelled", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value"))
+		ctx, cancelFn := context.WithCancel(context.Background())
+
+		cancelFn()
+		_, err := c.Find(ctx, q)
+
+		if !assert.Error(t, err) {
+			return
+		}
+
+		assert.Equal(t, context.Canceled, err)
+	})
+
+	t.Run("error - deadline exceeded", func(t *testing.T) {
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{exampleDoc})
+		q := New(Eq("key", "value"))
+		ctx, _ := context.WithTimeout(context.Background(), time.Nanosecond)
+
+		_, err := c.Find(ctx, q)
+
+		if !assert.Error(t, err) {
+			return
+		}
+
+		assert.Equal(t, context.DeadlineExceeded, err)
 	})
 }
 
@@ -287,24 +321,42 @@ func TestCollection_Iterate(t *testing.T) {
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
 
-		err := db.View(func(tx *bbolt.Tx) error {
-			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key Reference, value []byte) error {
-				count++
-				return nil
-			})
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			count++
+			return nil
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, count)
 	})
 
+	t.Run("ok - document indexed multiple times, query should un double", func(t *testing.T) {
+		doc := DocumentFromString(jsonExample)
+		doc2 := DocumentFromString(jsonExample2)
+		db := testDB(t)
+		count := 0
+
+		i := NewIndex(t.Name(),
+			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
+		)
+
+		c := createCollection(db)
+		c.AddIndex(i)
+		c.Add([]Document{doc, doc2})
+
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			count++
+			return nil
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, count)
+	})
+
 	t.Run("error", func(t *testing.T) {
-		err := db.View(func(tx *bbolt.Tx) error {
-			b := testBucket(t, tx)
-			return i.Iterate(b, q, func(key Reference, value []byte) error {
-				return errors.New("b00m!")
-			})
+		err := c.Iterate(q, func(key Reference, value []byte) error {
+			return errors.New("b00m!")
 		})
 
 		assert.Error(t, err)
