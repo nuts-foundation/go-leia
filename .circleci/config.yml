@@ -39,5 +39,5 @@ jobs:
       - run:
           name: Upload coverage
           command: |
-            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/go-leia
+            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/go-leia/v2
 
