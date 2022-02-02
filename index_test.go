@@ -447,3 +447,98 @@ func TestIndex_addRefToBucket(t *testing.T) {
 		})
 	})
 }
+
+func TestIndex_Sort(t *testing.T) {
+	i := NewIndex(t.Name(),
+		NewFieldIndexer("path.part", AliasOption("key")),
+		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+	)
+
+	t.Run("returns correct order when given in reverse", func(t *testing.T) {
+		sorted := i.Sort(
+			New(Eq("key2", "value")).
+				And(Eq("key", "value")), false)
+
+		if !assert.Len(t, sorted, 2) {
+			return
+		}
+		assert.Equal(t, "key", sorted[0].Name())
+		assert.Equal(t, "key2", sorted[1].Name())
+	})
+
+	t.Run("returns correct order when given in correct order", func(t *testing.T) {
+		sorted := i.Sort(
+			New(Eq("key", "value")).
+				And(Eq("key2", "value")), false)
+
+		if !assert.Len(t, sorted, 2) {
+			return
+		}
+		assert.Equal(t, "key", sorted[0].Name())
+		assert.Equal(t, "key2", sorted[1].Name())
+	})
+
+	t.Run("does not include any keys when primary key is missing", func(t *testing.T) {
+		sorted := i.Sort(
+			New(Eq("key2", "value")), false)
+
+		assert.Len(t, sorted, 0)
+	})
+
+	t.Run("includes all keys when includeMissing option is given", func(t *testing.T) {
+		sorted := i.Sort(
+			New(Eq("key3", "value")).
+				And(Eq("key2", "value")), true)
+
+		if !assert.Len(t, sorted, 2) {
+			return
+		}
+		assert.Equal(t, "key3", sorted[0].Name())
+		assert.Equal(t, "key2", sorted[1].Name())
+	})
+
+	t.Run("includes additional keys when includeMissing option is given", func(t *testing.T) {
+		sorted := i.Sort(
+			New(Eq("key3", "value")).
+				And(Eq("key", "value")), true)
+
+		if !assert.Len(t, sorted, 2) {
+			return
+		}
+		assert.Equal(t, "key", sorted[0].Name())
+		assert.Equal(t, "key3", sorted[1].Name())
+	})
+}
+
+func TestIndex_QueryPartsOutsideIndex(t *testing.T) {
+	i := NewIndex(t.Name(),
+		NewFieldIndexer("path.part", AliasOption("key")),
+		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+	)
+
+	t.Run("returns empty list when all parts in index", func(t *testing.T) {
+		additional := i.QueryPartsOutsideIndex(
+			New(Eq("key2", "value")).
+				And(Eq("key", "value")))
+
+		assert.Len(t, additional, 0)
+	})
+
+	t.Run("returns all parts when none match index", func(t *testing.T) {
+		additional := i.QueryPartsOutsideIndex(
+			New(Eq("key2", "value")))
+
+		assert.Len(t, additional, 1)
+	})
+
+	t.Run("returns correct params on partial index match", func(t *testing.T) {
+		additional := i.QueryPartsOutsideIndex(
+			New(Eq("key3", "value")).
+				And(Eq("key", "value")))
+
+		if !assert.Len(t, additional, 1) {
+			return
+		}
+		assert.Equal(t, "key3", additional[0].Name())
+	})
+}

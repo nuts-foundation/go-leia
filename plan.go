@@ -90,10 +90,7 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 }
 
 func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
-	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
-	if err != nil {
-		return err
-	}
+	queryParts := i.index.QueryPartsOutsideIndex(i.query)
 	if len(queryParts) != 0 {
 		return errors.New("no index with exact match to query found")
 	}
@@ -114,10 +111,7 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 }
 
 func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
-	queryParts, err := i.index.QueryPartsOutsideIndex(i.query)
-	if err != nil {
-		return err
-	}
+	queryParts := i.index.QueryPartsOutsideIndex(i.query)
 
 	// do the IndexScan
 	return i.collection.db.View(func(tx *bbolt.Tx) error {
