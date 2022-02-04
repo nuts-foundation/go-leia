@@ -52,10 +52,10 @@ type Index interface {
 
 	// Sort the query so its parts align with the index parts.
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
-	Sort(query Query, includeMissing bool) ([]QueryPart, error)
+	Sort(query Query, includeMissing bool) []QueryPart
 
-	// QueryPartsOutsideIndex selects the queryParts that are not convered by the index.
-	QueryPartsOutsideIndex(query Query) ([]QueryPart, error)
+	// QueryPartsOutsideIndex selects the queryParts that are not covered by the index.
+	QueryPartsOutsideIndex(query Query) []QueryPart
 
 	// Depth returns the number of indexed fields
 	Depth() int
@@ -213,10 +213,7 @@ func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
 func (i *index) IsMatch(query Query) float64 {
 	hitcount := 0
 
-	parts, err := i.Sort(query, false)
-	if err != nil {
-		return 0.0
-	}
+	parts := i.Sort(query, false)
 
 outer:
 	for thc, ip := range i.indexParts {
@@ -234,59 +231,60 @@ outer:
 	return float64(hitcount) / float64(len(i.indexParts))
 }
 
-func (i *index) Sort(query Query, includeMissing bool) ([]QueryPart, error) {
-	var sorted = make([]QueryPart, len(query.Parts()))
-	var missing = make([]QueryPart, 0)
-	hits := 0
+func (i *index) Sort(query Query, includeMissing bool) []QueryPart {
+	var sorted = make([]QueryPart, len(i.indexParts))
 
 outer:
 	for _, qp := range query.Parts() {
 		for j, ip := range i.indexParts {
 			if ip.Name() == qp.Name() {
-				if j >= len(sorted) {
-					return nil, errors.New("invalid query part")
-				}
-				sorted[hits] = qp
-				hits++
+				sorted[j] = qp
 				continue outer
 			}
 		}
-		missing = append(missing, qp)
+	}
+
+	// only use till the first nil value
+	for i, s := range sorted {
+		if s == nil {
+			sorted = sorted[:i]
+			break
+		}
 	}
 
 	if includeMissing {
-		for i, qp := range missing {
-			sorted[hits+i] = qp
+		// now include all params not in the sorted list
+	outerMissing:
+		for _, qp := range query.Parts() {
+			for _, sp := range sorted {
+				if sp.Name() == qp.Name() {
+					continue outerMissing
+				}
+			}
+			// missing so append
+			sorted = append(sorted, qp)
 		}
-	} else {
-		sorted = sorted[:hits]
 	}
 
-	return sorted, nil
+	return sorted
 }
 
-func (i *index) QueryPartsOutsideIndex(query Query) ([]QueryPart, error) {
+func (i *index) QueryPartsOutsideIndex(query Query) []QueryPart {
 	hits := 0
-	parts, err := i.Sort(query, true)
-	if err != nil {
-		return nil, err
-	}
+	parts := i.Sort(query, true)
 
-outer:
-	for _, qp := range parts {
-		for _, ip := range i.indexParts {
-			if ip.Name() == qp.Name() {
-				hits++
-				continue outer
-			}
+	for j, qp := range parts {
+		if j >= len(i.indexParts) || qp.Name() != i.indexParts[j].Name() {
+			break
 		}
+		hits++
 	}
 
 	if hits == len(parts) {
-		return []QueryPart{}, nil
+		return []QueryPart{}
 	}
 
-	return parts[hits:], nil
+	return parts[hits:]
 }
 
 func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error {
@@ -298,9 +296,10 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	}
 
 	// Sort the parts of the Query to conform to the index key building order
-	sortedQueryParts, err := i.Sort(query, false)
-	if err != nil {
-		return err
+	sortedQueryParts := i.Sort(query, false)
+
+	if len(sortedQueryParts) == 0 {
+		return errors.New("unable to iterate over index without matching keys")
 	}
 
 	// extract tokenizer and transform to here
