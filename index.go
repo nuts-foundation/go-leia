@@ -22,7 +22,6 @@ package leia
 import (
 	"bytes"
 	"errors"
-	"fmt"
 
 	"go.etcd.io/bbolt"
 )
@@ -276,6 +275,13 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	}
 
 	// extract tokenizer and transform to here
+	matchers := i.matchers(sortedQueryParts)
+
+	return findR(cBucket.Cursor(), Key{}, matchers, fn, []byte{})
+}
+
+func (i *index) matchers(sortedQueryParts []QueryPart) []matcher {
+	// extract tokenizer and transform to here
 	matchers := make([]matcher, len(sortedQueryParts))
 	for j, cPart := range sortedQueryParts {
 		terms := make([]Scalar, 0)
@@ -289,8 +295,7 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 			transform: i.indexParts[j].Transform,
 		}
 	}
-
-	return findR(cBucket.Cursor(), Key{}, matchers, fn)
+	return matchers
 }
 
 func (i *index) Keys(j FieldIndexer, document Document) ([]Scalar, error) {
@@ -322,24 +327,27 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) error {
+func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) error {
 	var err error
 	cPart := matchers[0].queryPart
 	for _, seekTerm := range matchers[0].terms {
+		// new location in cursor to skip to
 		seek := ComposeKey(sKey, seekTerm.Bytes())
 		condition := true
-		fmt.Printf("forwarding to: %s for %s\n", string(seek), string(sKey))
+
+		// do not go back to prevent infinite loops. The cursor may only go forward.
+		if bytes.Compare(seek, lastCursorPosition) <= 0 {
+			continue
+		}
+
 		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
-			fmt.Printf("current: %s\n", string(cKey))
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
-			fmt.Printf("remaining search key: %s\n", string(pf))
 			if len(sKey) == 0 {
 				pf = cKey
 			}
 			pfk := Key(pf)
-			newp := pfk.Split()[0] // todo bounds check?
-			fmt.Printf("new part of search key: %s\n", string(newp))
+			newp := pfk.Split()[0]
 
 			// check of current (partial) key still matches with query
 			condition = cPart.Condition(newp, matchers[0].transform)
@@ -347,19 +355,14 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) er
 				if len(matchers) > 1 {
 					// (partial) key still matches, continue to next index part
 					nKey := ComposeKey(sKey, newp)
-					fmt.Printf("going deeper into: %s\n", string(nKey))
-					err = findR(cursor, nKey, matchers[1:], fn)
-					fmt.Printf("exited from: %s\n", string(nKey))
+					err = findR(cursor, nKey, matchers[1:], fn, cKey)
 				} else {
 					// all index parts applied to key construction, retrieve results.
-					fmt.Printf("found match at: %s\n", string(cKey))
 					err = iterateOverDocuments(cursor, cKey, fn)
 				}
 				if err != nil {
 					return err
 				}
-			} else {
-				fmt.Printf("no match for: %s\n", string(cKey))
 			}
 		}
 	}

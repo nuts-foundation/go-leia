@@ -426,6 +426,55 @@ func TestIndex_Find(t *testing.T) {
 	})
 }
 
+func TestIndex_findR(t *testing.T) {
+	doc := []byte(jsonExample)
+	ref := defaultReferenceCreator(doc)
+	db, c := testCollection(t)
+
+	i := c.NewIndex(t.Name(),
+		NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+	).(*index)
+
+	_ = db.Update(func(tx *bbolt.Tx) error {
+		b := testBucket(t, tx)
+		return i.Add(b, ref, doc)
+	})
+
+	q := New(Eq("key", valueAsScalar))
+	matchers := i.matchers(q.Parts())
+	var found bool
+	foundFunc := func(key Reference, value []byte) error {
+		found = true
+		return nil
+	}
+
+	t.Run("match when cursor at beginning", func(t *testing.T) {
+		found = false
+
+		// by passing the value to be found as latest cursor value, it should skip over the results
+		err := db.View(func(tx *bbolt.Tx) error {
+			cursor := testBucket(t, tx).Bucket(i.BucketName()).Cursor()
+			return findR(cursor, []byte{}, matchers, foundFunc, []byte{})
+		})
+
+		assert.NoError(t, err)
+		assert.True(t, found)
+	})
+
+	t.Run("skip match when cursor already further", func(t *testing.T) {
+		found = false
+
+		// by passing the value to be found as latest cursor value, it should skip over the results
+		err := db.View(func(tx *bbolt.Tx) error {
+			cursor := testBucket(t, tx).Bucket(i.BucketName()).Cursor()
+			return findR(cursor, []byte{}, matchers, foundFunc, valueAsScalar.Bytes())
+		})
+
+		assert.NoError(t, err)
+		assert.False(t, found)
+	})
+}
+
 func TestIndex_addRefToBucket(t *testing.T) {
 	t.Run("adding more than 16 entries", func(t *testing.T) {
 		db := testDB(t)
