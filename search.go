@@ -41,11 +41,11 @@ type QueryPart interface {
 	Name() string
 
 	// Seek returns the key for cursor.Seek
-	Seek() (Key, error)
+	Seek() Scalar
 
 	// Condition returns true if given key falls within this condition.
 	// The optional transform fn is applied to this query part before evaluation is done.
-	Condition(key Key, transform Transform) (bool, error)
+	Condition(key Key, transform Transform) bool
 }
 
 // New creates a new query with an initial query part. Both begin and end are inclusive for the conditional check.
@@ -56,7 +56,7 @@ func New(part QueryPart) Query {
 }
 
 // Eq creates a query part for an exact match
-func Eq(name string, value interface{}) QueryPart {
+func Eq(name string, value Scalar) QueryPart {
 	return eqPart{
 		name:  name,
 		value: value,
@@ -64,7 +64,7 @@ func Eq(name string, value interface{}) QueryPart {
 }
 
 // Range creates a query part for a range query
-func Range(name string, begin interface{}, end interface{}) QueryPart {
+func Range(name string, begin Scalar, end Scalar) QueryPart {
 	return rangePart{
 		name:  name,
 		begin: begin,
@@ -74,7 +74,7 @@ func Range(name string, begin interface{}, end interface{}) QueryPart {
 
 // Prefix creates a query part for a partial match
 // The beginning of a value is matched against the query.
-func Prefix(name string, value interface{}) QueryPart {
+func Prefix(name string, value Scalar) QueryPart {
 	return prefixPart{
 		name:  name,
 		value: value,
@@ -96,98 +96,74 @@ func (q query) Parts() []QueryPart {
 
 type eqPart struct {
 	name  string
-	value interface{}
+	value Scalar
 }
 
 func (e eqPart) Name() string {
 	return e.name
 }
 
-func (e eqPart) Seek() (Key, error) {
-	return toBytes(e.value)
+func (e eqPart) Seek() Scalar {
+	return e.value
 }
 
-func (e eqPart) Condition(key Key, transform Transform) (bool, error) {
+func (e eqPart) Condition(key Key, transform Transform) bool {
 	if transform != nil {
 		transformed := transform(e.value)
-		transformedBytes, err := toBytes(transformed)
-		if err != nil {
-			return false, err
-		}
-		return bytes.Compare(key, transformedBytes) == 0, nil
+		return bytes.Compare(key, transformed.Bytes()) == 0
 	}
 
-	b, err := toBytes(e.value)
-	if err != nil {
-		return false, err
-	}
-	return bytes.Compare(key, b) == 0, nil
+	return bytes.Compare(key, e.value.Bytes()) == 0
 }
 
 type rangePart struct {
 	name  string
-	begin interface{}
-	end   interface{}
+	begin Scalar
+	end   Scalar
 }
 
 func (r rangePart) Name() string {
 	return r.name
 }
 
-func (r rangePart) Seek() (Key, error) {
-	return toBytes(r.begin)
+func (r rangePart) Seek() Scalar {
+	return r.begin
 }
 
-func (r rangePart) Condition(key Key, transform Transform) (bool, error) {
+func (r rangePart) Condition(key Key, transform Transform) bool {
 	bTransformed := r.begin
-	if transform != nil {
-		bTransformed = transform(r.begin)
-	}
 	eTransformed := r.end
 	if transform != nil {
+		bTransformed = transform(r.begin)
 		eTransformed = transform(r.end)
 	}
 
-	b, err := toBytes(bTransformed)
-	if err != nil {
-		return false, err
-	}
-
 	// the key becomes before the start
-	if bytes.Compare(key, b) < 0 {
-		return false, nil
+	if bytes.Compare(key, bTransformed.Bytes()) < 0 {
+		return false
 	}
 
-	e, err := toBytes(eTransformed)
-	if err != nil {
-		return false, err
-	}
-	return bytes.Compare(key, e) <= 0, nil
+	return bytes.Compare(key, eTransformed.Bytes()) <= 0
 }
 
 type prefixPart struct {
 	name  string
-	value interface{}
+	value Scalar
 }
 
 func (p prefixPart) Name() string {
 	return p.name
 }
 
-func (p prefixPart) Seek() (Key, error) {
-	return toBytes(p.value)
+func (p prefixPart) Seek() Scalar {
+	return p.value
 }
 
-func (p prefixPart) Condition(key Key, transform Transform) (bool, error) {
+func (p prefixPart) Condition(key Key, transform Transform) bool {
 	transformed := p.value
 	if transform != nil {
 		transformed = transform(p.value)
 	}
 
-	prefix, err := toBytes(transformed)
-	if err != nil {
-		return false, err
-	}
-
-	return bytes.HasPrefix(key, prefix), nil
+	return bytes.HasPrefix(key, transformed.Bytes())
 }

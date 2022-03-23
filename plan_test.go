@@ -29,8 +29,7 @@ import (
 
 func TestFullTableScanQueryPlan_execute(t *testing.T) {
 	t.Run("ok - returns nil when no globalDocument bucket exists", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
+		_, c := testCollection(t)
 		queryPlan := fullTableScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
@@ -46,9 +45,8 @@ func TestFullTableScanQueryPlan_execute(t *testing.T) {
 	})
 
 	t.Run("error - when walker returns an error", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
+		_, c := testCollection(t)
+		_ = c.Add([]Document{exampleDoc})
 		queryPlan := fullTableScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
@@ -66,11 +64,12 @@ func TestFullTableScanQueryPlan_execute(t *testing.T) {
 
 func TestIndexScanQueryPlan_Execute(t *testing.T) {
 	t.Run("error - query does not exactly match index", func(t *testing.T) {
+		_, _, i := testIndex(t)
 		queryPlan := indexScanQueryPlan{
 			queryPlanBase: queryPlanBase{
-				query: New(Eq("key", "value")).And(Eq("not_indexed", "value")),
+				query: New(Eq("key", valueAsScalar)).And(Eq("not_indexed", valueAsScalar)),
 			},
-			index: testIndex(t),
+			index: i,
 		}
 
 		err := queryPlan.execute(func(key []byte, value []byte) error {
@@ -82,14 +81,13 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 	})
 
 	t.Run("ok - nothing added", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
+		_, c, i := testIndex(t)
 		queryPlan := indexScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query:      New(Eq("key", "value")),
+				query:      New(Eq("key", valueAsScalar)),
 			},
-			index: testIndex(t),
+			index: i,
 		}
 
 		err := queryPlan.execute(func(key []byte, value []byte) error {
@@ -103,14 +101,13 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 
 func TestResultScanQueryPlan_Execute(t *testing.T) {
 	t.Run("ok - nothing added", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
+		_, c, i := testIndex(t)
 		queryPlan := resultScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query:      New(Eq("key", "value")),
+				query:      New(Eq("key", valueAsScalar)),
 			},
-			index: testIndex(t),
+			index: i,
 		}
 
 		err := queryPlan.execute(func(key Reference, value []byte) error {
@@ -124,9 +121,8 @@ func TestResultScanQueryPlan_Execute(t *testing.T) {
 
 func TestDocumentFetcher(t *testing.T) {
 	t.Run("ok - nil bytes passed", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
+		db, c := testCollection(t)
+		_ = c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			fetcher := documentFetcher(tx.Bucket(documentCollectionByteRef()), func(_ []byte, _ []byte) error {
@@ -156,34 +152,17 @@ func TestResultScanner(t *testing.T) {
 	bytes := []byte(json)
 
 	t.Run("error - non comparable entry", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
+		db, c := testCollection(t)
+		_ = c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			scanner := resultScanner([]QueryPart{Eq("main.nesting", "value")}, func(_ Reference, _ []byte) error {
+			scanner := resultScanner([]QueryPart{Eq("main.nesting", valueAsScalar)}, func(_ Reference, _ []byte) error {
 				return errors.New("failed")
-			})
+			}, &c)
 
 			return scanner(nil, bytes)
 		})
 
 		assert.EqualError(t, err, "type at path not supported for indexing: {\n\t\t\t\"type\": \"bird\",\n\t\t\t\"nice\": false\n\t\t}")
-	})
-
-	t.Run("error - unsupported queryPart", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
-
-		err := db.View(func(tx *bbolt.Tx) error {
-			scanner := resultScanner([]QueryPart{Eq("id", true)}, func(_ Reference, _ []byte) error {
-				return errors.New("failed")
-			})
-
-			return scanner(nil, bytes)
-		})
-
-		assert.EqualError(t, err, "couldn't convert data to []byte")
 	})
 }

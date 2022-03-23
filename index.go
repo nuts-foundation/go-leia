@@ -22,6 +22,7 @@ package leia
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"go.etcd.io/bbolt"
 )
@@ -31,66 +32,38 @@ import (
 type Index interface {
 	// Name returns the name of this index
 	Name() string
-
 	// Add indexes the document. It uses a sub-bucket of the given bucket.
 	// It will only be indexed if the complete index matches.
 	Add(bucket *bbolt.Bucket, ref Reference, doc Document) error
-
 	// Delete document from the index
 	Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error
-
 	// IsMatch determines if this index can be used for the given query. The higher the return value, the more likely it is useful.
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
-
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
 	// it will not filter out double values
 	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
-
 	// BucketName returns the bucket name for this index
 	BucketName() []byte
-
 	// Sort the query so its parts align with the index parts.
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
 	Sort(query Query, includeMissing bool) []QueryPart
-
 	// QueryPartsOutsideIndex selects the queryParts that are not covered by the index.
 	QueryPartsOutsideIndex(query Query) []QueryPart
-
 	// Depth returns the number of indexed fields
 	Depth() int
+	// Keys returns the scalars found in the document at the location specified by the FieldIndexer
+	Keys(fi FieldIndexer, document Document) ([]Scalar, error)
 }
 
 // iteratorFn defines a function that is used as a callback when an IterateIndex query finds results. The function is called for each result entry.
 // the key will be the indexed value and the value will contain an Entry
 type iteratorFn DocumentWalker
 
-// NewIndex creates a new blank index.
-// If multiple parts are given, a compound index is created.
-func NewIndex(name string, parts ...FieldIndexer) Index {
-	return &index{
-		name:       name,
-		indexParts: parts,
-	}
-}
-
-// FieldIndexer is the public interface that defines functions for a field index instruction.
-// A FieldIndexer is used when a document is indexed.
-type FieldIndexer interface {
-	// Name is used for matching against a Query
-	Name() string
-	// Keys returns the keys that matched this document. Multiple keys are combined by the index
-	Keys(document Document) ([]Key, error)
-	// Tokenize may split up Keys and search terms. For example split a sentence into words.
-	Tokenize(value interface{}) []interface{}
-	// Transform is a function that alters the value to be indexed as well as any search criteria.
-	// For example LowerCase is a Transform function that transforms the value to lower case.
-	Transform(value interface{}) interface{}
-}
-
 type index struct {
 	name       string
 	indexParts []FieldIndexer
+	collection Collection
 }
 
 func (i *index) Name() string {
@@ -107,15 +80,15 @@ func (i *index) Depth() int {
 
 func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
 	cBucket, _ := bucket.CreateBucketIfNotExists(i.BucketName())
-	return addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
+	return i.addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
 // addDocumentR, like Add but recursive
-func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
+func (i *index) addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
-	matches, err := ip.Keys(doc)
+	matches, err := i.Keys(ip, doc)
 	if err != nil {
 		return err
 	}
@@ -124,7 +97,7 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 	if len(parts) == 1 {
 		// all matches to be added to current bucket
 		for _, m := range matches {
-			key := ComposeKey(cKey, m)
+			key := ComposeKey(cKey, m.Bytes())
 			_ = addRefToBucket(bucket, key, ref)
 		}
 		if len(matches) == 0 {
@@ -136,8 +109,8 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 
 	// continue recursion
 	for _, m := range matches {
-		nKey := ComposeKey(cKey, m)
-		if err = addDocumentR(bucket, parts[1:], nKey, ref, doc); err != nil {
+		nKey := ComposeKey(cKey, m.Bytes())
+		if err = i.addDocumentR(bucket, parts[1:], nKey, ref, doc); err != nil {
 			return err
 		}
 	}
@@ -146,18 +119,18 @@ func addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Refe
 	// add key with an empty byte slice as value
 	if len(matches) == 0 {
 		nKey := ComposeKey(cKey, []byte{})
-		return addDocumentR(bucket, parts[1:], nKey, ref, doc)
+		return i.addDocumentR(bucket, parts[1:], nKey, ref, doc)
 	}
 
 	return nil
 }
 
-// addDocumentR, like Add but recursive
-func removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
+// removeDocumentR, like Delete but recursive
+func (i *index) removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
 	// current part
 	ip := parts[0]
 
-	matches, err := ip.Keys(doc)
+	matches, err := i.Keys(ip, doc)
 	if err != nil {
 		return err
 	}
@@ -165,7 +138,7 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref R
 	// exit condition
 	if len(parts) == 1 {
 		for _, m := range matches {
-			key := ComposeKey(cKey, m)
+			key := ComposeKey(cKey, m.Bytes())
 			_ = removeRefFromBucket(bucket, key, ref)
 		}
 		return nil
@@ -173,8 +146,8 @@ func removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref R
 
 	// continue recursion
 	for _, m := range matches {
-		nKey := ComposeKey(cKey, m)
-		return removeDocumentR(bucket, parts[1:], nKey, ref, doc)
+		nKey := ComposeKey(cKey, m.Bytes())
+		return i.removeDocumentR(bucket, parts[1:], nKey, ref, doc)
 	}
 
 	// no matches for the document and this part of the index
@@ -187,7 +160,7 @@ func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error 
 		return nil
 	}
 
-	return removeDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
+	return i.removeDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
 }
 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
@@ -305,13 +278,9 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	// extract tokenizer and transform to here
 	matchers := make([]matcher, len(sortedQueryParts))
 	for j, cPart := range sortedQueryParts {
-		terms := make([]Key, 0)
-		seek, err := cPart.Seek()
-		if err != nil {
-			return err
-		}
-		for _, token := range i.indexParts[j].Tokenize(seek) {
-			seek = KeyOf(i.indexParts[j].Transform(token))
+		terms := make([]Scalar, 0)
+		for _, token := range i.indexParts[j].Tokenize(cPart.Seek()) {
+			seek := i.indexParts[j].Transform(token)
 			terms = append(terms, seek)
 		}
 		matchers[j] = matcher{
@@ -324,44 +293,73 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	return findR(cBucket.Cursor(), Key{}, matchers, fn)
 }
 
+func (i *index) Keys(j FieldIndexer, document Document) ([]Scalar, error) {
+	// first get the raw values from the query path
+	rawKeys, err := i.collection.ValuesAtPath(document, j.Path())
+	if err != nil {
+		return nil, err
+	}
+
+	// run the tokenizer
+	tokenized := make([]Scalar, 0)
+	for _, rawKey := range rawKeys {
+		tokens := j.Tokenize(rawKey)
+		tokenized = append(tokenized, tokens...)
+	}
+
+	// run the transformer
+	transformed := make([]Scalar, len(tokenized))
+	for i, rawKey := range tokenized {
+		transformed[i] = j.Transform(rawKey)
+	}
+
+	return transformed, nil
+}
+
 type matcher struct {
 	queryPart QueryPart
-	terms     []Key
+	terms     []Scalar
 	transform Transform
 }
 
 func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn) error {
 	var err error
 	cPart := matchers[0].queryPart
-	for _, seek := range matchers[0].terms {
-		seek = ComposeKey(sKey, seek)
+	for _, seekTerm := range matchers[0].terms {
+		seek := ComposeKey(sKey, seekTerm.Bytes())
 		condition := true
+		fmt.Printf("forwarding to: %s for %s\n", string(seek), string(sKey))
 		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
+			fmt.Printf("current: %s\n", string(cKey))
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
+			fmt.Printf("remaining search key: %s\n", string(pf))
 			if len(sKey) == 0 {
 				pf = cKey
 			}
 			pfk := Key(pf)
 			newp := pfk.Split()[0] // todo bounds check?
+			fmt.Printf("new part of search key: %s\n", string(newp))
 
 			// check of current (partial) key still matches with query
-			condition, err = cPart.Condition(newp, matchers[0].transform)
-			if err != nil {
-				return err
-			}
+			condition = cPart.Condition(newp, matchers[0].transform)
 			if condition {
 				if len(matchers) > 1 {
 					// (partial) key still matches, continue to next index part
 					nKey := ComposeKey(sKey, newp)
+					fmt.Printf("going deeper into: %s\n", string(nKey))
 					err = findR(cursor, nKey, matchers[1:], fn)
+					fmt.Printf("exited from: %s\n", string(nKey))
 				} else {
 					// all index parts applied to key construction, retrieve results.
+					fmt.Printf("found match at: %s\n", string(cKey))
 					err = iterateOverDocuments(cursor, cKey, fn)
 				}
 				if err != nil {
 					return err
 				}
+			} else {
+				fmt.Printf("no match for: %s\n", string(cKey))
 			}
 		}
 	}

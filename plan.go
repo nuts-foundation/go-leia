@@ -77,7 +77,7 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		if f.query != nil {
 			parts = f.query.Parts()
 		}
-		scanner := resultScanner(parts, walker)
+		scanner := resultScanner(parts, walker, f.collection)
 
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
@@ -125,7 +125,7 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		iBucket := tx.Bucket([]byte(i.collection.Name))
 
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
-		resultScan := resultScanner(queryParts, walker)
+		resultScan := resultScanner(queryParts, walker, i.collection)
 
 		// fetcher expands references to documents, for each document it calls the resultScan
 		fetcher := documentFetcher(docBucket, resultScan)
@@ -154,27 +154,22 @@ func documentFetcher(documentCollection *bbolt.Bucket, docWalker documentScanFn)
 
 // resultScanner returns a resultScannerFn. For each call it will compare the document against the given queryParts.
 // If conditions are met, it'll call the DocumentWalker
-func resultScanner(queryParts []QueryPart, walker DocumentWalker) documentScanFn {
-	return func(ref []byte, docBytes []byte) error {
-		doc := DocumentFromBytes(docBytes)
+func resultScanner(queryParts []QueryPart, walker DocumentWalker, collection Collection) documentScanFn {
+	return func(ref []byte, doc []byte) error {
 	outer:
 		for _, part := range queryParts {
-			keys, err := doc.KeysAtPath(part.Name())
+			keys, err := collection.ValuesAtPath(doc, part.Name())
 			if err != nil {
 				return err
 			}
 			for _, k := range keys {
-				m, err := part.Condition(k, nil)
-				if err != nil {
-					return err
-				}
-				if m {
+				if part.Condition(k.Bytes(), nil) {
 					continue outer
 				}
 			}
 			return nil
 		}
-		return walker(ref, doc.raw)
+		return walker(ref, doc)
 	}
 }
 

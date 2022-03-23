@@ -25,20 +25,20 @@ import (
 )
 
 // Transform is a function definition for transforming values and search terms.
-type Transform func(interface{}) interface{}
+type Transform func(Scalar) Scalar
 
 // ToLower transforms all Unicode letters mapped to their lower case.
 // It only transforms objects that conform to the Stringer interface.
-func ToLower(terms interface{}) interface{} {
-	switch terms.(type) {
+func ToLower(scalar Scalar) Scalar {
+	value := scalar.value
+
+	switch typedValue := value.(type) {
 	case string:
-		return strings.ToLower(terms.(string))
-	case Key:
-		return strings.ToLower(terms.(Key).String())
+		return ScalarMustParse(strings.ToLower(typedValue))
 	case []byte:
-		return strings.ToLower(string(terms.([]byte)))
+		return ScalarMustParse(strings.ToLower(string(typedValue)))
 	default:
-		return terms
+		return scalar
 	}
 }
 

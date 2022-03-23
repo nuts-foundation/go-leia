@@ -45,6 +45,20 @@ func AliasOption(alias string) IndexOption {
 	}
 }
 
+// FieldIndexer is the public interface that defines functions for a field index instruction.
+// A FieldIndexer is used when a document is indexed.
+type FieldIndexer interface {
+	// Name is used for matching against a Query
+	Name() string
+	// Path returns the json path of this fieldIndexer
+	Path() string
+	// Tokenize may split up Keys and search terms. For example split a sentence into words.
+	Tokenize(value Scalar) []Scalar
+	// Transform is a function that alters the value to be indexed as well as any search criteria.
+	// For example LowerCase is a Transform function that transforms the value to lower case.
+	Transform(value Scalar) Scalar
+}
+
 // NewFieldIndexer creates a new fieldIndexer
 // leave the name empty to use the json path as name.
 // the name is to be used as query key when searching
@@ -72,63 +86,27 @@ func (j fieldIndexer) Name() string {
 	return j.path
 }
 
-func (j fieldIndexer) Keys(document Document) ([]Key, error) {
-	// first get the raw values from the query path
-	rawKeys, err := document.ValuesAtPath(j.path)
-	if err != nil {
-		return nil, err
-	}
-
-	// run the tokenizer
-	tokenized := make([]interface{}, 0)
-	if j.tokenizer == nil {
-		tokenized = rawKeys
-	} else {
-		for _, rawKey := range rawKeys {
-			tokens := j.Tokenize(rawKey)
-			tokenized = append(tokenized, tokens...)
-		}
-	}
-
-	// run the transformer
-	transformed := make([]interface{}, len(tokenized))
-	if j.transformer == nil {
-		transformed = tokenized
-	} else {
-		for i, rawKey := range tokenized {
-			transformed[i] = j.transformer(rawKey)
-		}
-	}
-
-	// to Keys
-	keys := make([]Key, len(transformed))
-	for i, t := range transformed {
-		keys[i], err = toBytes(t)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return keys, nil
+func (j fieldIndexer) Path() string {
+	return j.path
 }
 
-func (j fieldIndexer) Tokenize(value interface{}) []interface{} {
+func (j fieldIndexer) Tokenize(scalar Scalar) []Scalar {
 	if j.tokenizer == nil {
-		return []interface{}{value}
+		return []Scalar{scalar}
 	}
 
-	if s, ok := value.(string); ok {
+	if s, ok := scalar.value.(string); ok {
 		tokens := j.tokenizer(s)
-		result := make([]interface{}, len(tokens))
+		result := make([]Scalar, len(tokens))
 		for i, t := range tokens {
-			result[i] = t
+			result[i] = ScalarMustParse(t)
 		}
 		return result
 	}
-	return []interface{}{value}
+	return []Scalar{scalar}
 }
 
-func (j fieldIndexer) Transform(value interface{}) interface{} {
+func (j fieldIndexer) Transform(value Scalar) Scalar {
 	if j.transformer == nil {
 		return value
 	}
