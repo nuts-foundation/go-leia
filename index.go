@@ -22,6 +22,7 @@ package leia
 import (
 	"bytes"
 	"errors"
+	"fmt"
 
 	"go.etcd.io/bbolt"
 )
@@ -321,6 +322,29 @@ func (i *index) Keys(j FieldIndexer, document Document) ([]Scalar, error) {
 	return transformed, nil
 }
 
+func (i *index) Keys(j FieldIndexer, document Document) ([]Scalar, error) {
+	// first get the raw values from the query path
+	rawKeys, err := i.collection.ValuesAtPath(document, j.Path())
+	if err != nil {
+		return nil, err
+	}
+
+	// run the tokenizer
+	tokenized := make([]Scalar, 0)
+	for _, rawKey := range rawKeys {
+		tokens := j.Tokenize(rawKey)
+		tokenized = append(tokenized, tokens...)
+	}
+
+	// run the transformer
+	transformed := make([]Scalar, len(tokenized))
+	for i, rawKey := range tokenized {
+		transformed[i] = j.Transform(rawKey)
+	}
+
+	return transformed, nil
+}
+
 type matcher struct {
 	queryPart QueryPart
 	terms     []Scalar
@@ -341,8 +365,10 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 		}
 
 		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
+			fmt.Printf("current: %s\n", string(cKey))
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
+			fmt.Printf("remaining search key: %s\n", string(pf))
 			if len(sKey) == 0 {
 				pf = cKey
 			}
@@ -358,11 +384,14 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 					err = findR(cursor, nKey, matchers[1:], fn, cKey)
 				} else {
 					// all index parts applied to key construction, retrieve results.
+					fmt.Printf("found match at: %s\n", string(cKey))
 					err = iterateOverDocuments(cursor, cKey, fn)
 				}
 				if err != nil {
 					return err
 				}
+			} else {
+				fmt.Printf("no match for: %s\n", string(cKey))
 			}
 		}
 	}
