@@ -35,8 +35,6 @@ func ToLower(scalar Scalar) Scalar {
 	switch typedValue := value.(type) {
 	case string:
 		return ScalarMustParse(strings.ToLower(typedValue))
-	case []byte:
-		return ScalarMustParse(strings.ToLower(string(typedValue)))
 	default:
 		return scalar
 	}
