@@ -21,20 +21,21 @@ package leia
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
 
-	"github.com/tidwall/gjson"
+	"github.com/piprate/json-gold/ld"
 	"go.etcd.io/bbolt"
 )
 
-type jsonCollection struct {
-	name      string
-	db        *bbolt.DB
-	indexList []Index
-	refMake   ReferenceFunc
+type jsonldCollection struct {
+	name              string
+	db                *bbolt.DB
+	indexList         []Index
+	refMake           ReferenceFunc
+	documentProcessor *ld.JsonLdProcessor
 }
 
-func (c *jsonCollection) NewIndex(name string, parts ...FieldIndexer) Index {
+func (c *jsonldCollection) NewIndex(name string, parts ...FieldIndexer) Index {
 	return &index{
 		name:       name,
 		indexParts: parts,
@@ -42,15 +43,15 @@ func (c *jsonCollection) NewIndex(name string, parts ...FieldIndexer) Index {
 	}
 }
 
-func (c *jsonCollection) Name() string {
+func (c *jsonldCollection) Name() string {
 	return c.name
 }
 
-func (c *jsonCollection) DB() *bbolt.DB {
+func (c *jsonldCollection) DB() *bbolt.DB {
 	return c.db
 }
 
-func (c *jsonCollection) AddIndex(indexes ...Index) error {
+func (c *jsonldCollection) AddIndex(indexes ...Index) error {
 	for _, index := range indexes {
 		for _, i := range c.indexList {
 			if i.Name() == index.Name() {
@@ -90,7 +91,7 @@ func (c *jsonCollection) AddIndex(indexes ...Index) error {
 	return nil
 }
 
-func (c *jsonCollection) DropIndex(name string) error {
+func (c *jsonldCollection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 		if err != nil {
@@ -112,19 +113,19 @@ func (c *jsonCollection) DropIndex(name string) error {
 	})
 }
 
-func (c *jsonCollection) Reference(doc Document) Reference {
+func (c *jsonldCollection) Reference(doc Document) Reference {
 	return c.refMake(doc)
 }
 
 // Add a json document set to the store
 // this uses a single transaction per set.
-func (c *jsonCollection) Add(jsonSet []Document) error {
+func (c *jsonldCollection) Add(jsonSet []Document) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		return c.add(tx, jsonSet)
 	})
 }
 
-func (c *jsonCollection) add(tx *bbolt.Tx, jsonSet []Document) error {
+func (c *jsonldCollection) add(tx *bbolt.Tx, jsonSet []Document) error {
 	bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 	if err != nil {
 		return err
@@ -156,7 +157,7 @@ func (c *jsonCollection) add(tx *bbolt.Tx, jsonSet []Document) error {
 	return nil
 }
 
-func (c *jsonCollection) Find(ctx context.Context, query Query) ([]Document, error) {
+func (c *jsonldCollection) Find(ctx context.Context, query Query) ([]Document, error) {
 	docs := make([]Document, 0)
 	walker := func(key Reference, value []byte) error {
 		// stop iteration when needed
@@ -175,7 +176,7 @@ func (c *jsonCollection) Find(ctx context.Context, query Query) ([]Document, err
 	return docs, nil
 }
 
-func (c *jsonCollection) Iterate(query Query, fn DocumentWalker) error {
+func (c *jsonldCollection) Iterate(query Query, fn DocumentWalker) error {
 	plan, err := c.queryPlan(query)
 	if err != nil {
 		return err
@@ -188,7 +189,7 @@ func (c *jsonCollection) Iterate(query Query, fn DocumentWalker) error {
 }
 
 // IndexIterate uses a query to loop over all keys and Entries in an index. It skips the resultScan and collect phase
-func (c *jsonCollection) IndexIterate(query Query, fn ReferenceScanFn) error {
+func (c *jsonldCollection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	index := c.findIndex(query)
 	if index == nil {
 		return ErrNoIndex
@@ -206,14 +207,14 @@ func (c *jsonCollection) IndexIterate(query Query, fn ReferenceScanFn) error {
 }
 
 // Delete a document from the store, this also removes the entries from indices
-func (c *jsonCollection) Delete(doc Document) error {
+func (c *jsonldCollection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		return c.delete(tx, doc)
 	})
 }
 
-func (c *jsonCollection) delete(tx *bbolt.Tx, doc Document) error {
+func (c *jsonldCollection) delete(tx *bbolt.Tx, doc Document) error {
 	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
@@ -221,7 +222,7 @@ func (c *jsonCollection) delete(tx *bbolt.Tx, doc Document) error {
 
 	ref := c.refMake(doc)
 
-	docBucket := c.documentBucket(tx)
+	docBucket := documentBucket(tx, c)
 	if docBucket == nil {
 		return nil
 	}
@@ -241,7 +242,7 @@ func (c *jsonCollection) delete(tx *bbolt.Tx, doc Document) error {
 	return nil
 }
 
-func (c *jsonCollection) queryPlan(query Query) (queryPlan, error) {
+func (c *jsonldCollection) queryPlan(query Query) (queryPlan, error) {
 	index := c.findIndex(query)
 
 	if index == nil {
@@ -265,7 +266,7 @@ func (c *jsonCollection) queryPlan(query Query) (queryPlan, error) {
 // find a matching index.
 // The index may, at most, be one longer than the number of search options.
 // The longest index will win.
-func (c *jsonCollection) findIndex(query Query) Index {
+func (c *jsonldCollection) findIndex(query Query) Index {
 	// first map the indices to the number of matching search options
 	var cIndex Index
 	var cMatch float64
@@ -281,12 +282,12 @@ func (c *jsonCollection) findIndex(query Query) Index {
 	return cIndex
 }
 
-func (c *jsonCollection) Get(key Reference) (Document, error) {
+func (c *jsonldCollection) Get(key Reference) (Document, error) {
 	var err error
 	var data []byte
 
 	err = c.db.View(func(tx *bbolt.Tx) error {
-		bucket := c.documentBucket(tx)
+		bucket := documentBucket(tx, c)
 		if bucket == nil {
 			return nil
 		}
@@ -302,49 +303,80 @@ func (c *jsonCollection) Get(key Reference) (Document, error) {
 	return data, err
 }
 
-func (c *jsonCollection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
-	bucket := tx.Bucket([]byte(c.name))
-	if bucket == nil {
-		return nil
-	}
-	return bucket.Bucket(documentCollectionByteRef())
-}
-
 // ValuesAtPath returns a slice with the values found at the given JSON path query
-func (c *jsonCollection) ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error) {
-	jsonPath, ok := queryPath.(jsonPath)
+func (c *jsonldCollection) ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error) {
+	termPath, ok := queryPath.(termPath)
 	if !ok {
 		return nil, ErrInvalidQuery
 	}
 
-	if !gjson.ValidBytes(document) {
-		return nil, ErrInvalidJSON
+	if len(termPath.terms) == 0 {
+		return []Scalar{}, nil
 	}
-	result := gjson.GetBytes(document, string(jsonPath))
 
-	return valuesFromResult(result)
+	var input interface{}
+	if err := json.Unmarshal(document, &input); err != nil {
+		return nil, err
+	}
+
+	expanded, err := c.documentProcessor.Expand(input, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return valuesFromSliceAtPath(expanded, termPath), nil
 }
 
-func valuesFromResult(result gjson.Result) ([]Scalar, error) {
-	switch result.Type {
-	case gjson.String:
-		return []Scalar{{value: result.Str}}, nil
-	case gjson.Number:
-		return []Scalar{{value: result.Num}}, nil
-	case gjson.Null:
-		return []Scalar{}, nil
-	default:
-		if result.IsArray() {
-			keys := make([]Scalar, 0)
-			for _, subResult := range result.Array() {
-				subKeys, err := valuesFromResult(subResult)
-				if err != nil {
-					return nil, err
-				}
-				keys = append(keys, subKeys...)
-			}
-			return keys, nil
+func valuesFromSliceAtPath(expanded []interface{}, termPath termPath) []Scalar {
+	result := make([]Scalar, 0)
+
+	for _, sub := range expanded {
+		switch typedSub := sub.(type) {
+		case []interface{}:
+			result = append(result, valuesFromSliceAtPath(typedSub, termPath)...)
+		case map[string]interface{}:
+			result = append(result, valuesFromMapAtPath(typedSub, termPath)...)
 		}
 	}
-	return nil, fmt.Errorf("type at path not supported for indexing: %s", result.String())
+
+	return result
+}
+
+func valuesFromMapAtPath(expanded map[string]interface{}, termPath termPath) []Scalar {
+	// JSON-LD in expanded form either has @value, @id, @list or @set
+	if termPath.IsEmpty() {
+		if value, ok := expanded["@value"]; ok {
+			return []Scalar{ScalarMustParse(value)}
+		}
+		if id, ok := expanded["@id"]; ok {
+			return []Scalar{ScalarMustParse(id)}
+		}
+		if list, ok := expanded["@list"]; ok {
+			castList := list.([]interface{})
+			scalars := make([]Scalar, len(castList))
+			for i, s := range castList {
+				scalars[i] = ScalarMustParse(s)
+			}
+			return scalars
+		}
+		if set, ok := expanded["@set"]; ok {
+			castSet := set.([]interface{})
+			scalars := make([]Scalar, len(castSet))
+			for i, s := range castSet {
+				scalars[i] = ScalarMustParse(s)
+			}
+			return scalars
+		}
+	}
+
+	if value, ok := expanded[termPath.Head()]; ok {
+		// the value should now be a slice
+		next, ok := value.([]interface{})
+		if !ok {
+			return nil
+		}
+		return valuesFromSliceAtPath(next, termPath.Tail())
+	}
+
+	return nil
 }

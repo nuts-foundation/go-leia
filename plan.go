@@ -33,7 +33,7 @@ type queryPlan interface {
 
 // queryPlanBase contains elements common for each query plan
 type queryPlanBase struct {
-	collection *jsonCollection
+	collection Collection
 	query      Query
 }
 
@@ -61,8 +61,8 @@ type ReferenceScanFn func(key []byte, value []byte) error
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
-	return f.collection.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(f.collection.name))
+	return f.collection.DB().View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(f.collection.Name()))
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
@@ -96,9 +96,9 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 	}
 
 	// do the IndexScan
-	return i.collection.db.View(func(tx *bbolt.Tx) error {
+	return i.collection.DB().View(func(tx *bbolt.Tx) error {
 		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(i.collection.name))
+		iBucket := tx.Bucket([]byte(i.collection.Name()))
 		if iBucket == nil { // nothing added yet
 			return nil
 		}
@@ -114,15 +114,15 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts := i.index.QueryPartsOutsideIndex(i.query)
 
 	// do the IndexScan
-	return i.collection.db.View(func(tx *bbolt.Tx) error {
-		docBucket := i.collection.documentBucket(tx)
+	return i.collection.DB().View(func(tx *bbolt.Tx) error {
+		docBucket := documentBucket(tx, i.collection)
 		if docBucket == nil {
 			// no bucket means no docs
 			return nil
 		}
 
 		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(i.collection.name))
+		iBucket := tx.Bucket([]byte(i.collection.Name()))
 
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
 		resultScan := resultScanner(queryParts, walker, i.collection)

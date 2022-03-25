@@ -42,11 +42,11 @@ func main() {
 		}
 	}()
 
-	s, err := leia.NewStore(path.Join(dir, "documents.db"), false)
+	s, err := leia.NewStore(path.Join(dir, "documents.db"))
 	if err != nil {
 		panic(err)
 	}
-	c := s.Collection("vcs")
+	c := s.JsonCollection("vcs")
 	var credentialIndex = c.NewIndex("subject.resource",
 		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.id")),
 		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.resources.#.path"), leia.TransformerOption(leia.ToLower)),

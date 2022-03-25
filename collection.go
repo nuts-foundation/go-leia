@@ -45,6 +45,8 @@ func documentCollectionByteRef() []byte {
 
 // Collection defines a logical jsonCollection of documents and indices within a store.
 type Collection interface {
+	// Name returns the name of the collection
+	Name() string
 	// AddIndex to this jsonCollection. It doesn't matter if the index already exists.
 	// If you want to override an index (by path) drop it first.
 	AddIndex(index ...Index) error
@@ -73,6 +75,9 @@ type Collection interface {
 	IndexIterate(query Query, fn ReferenceScanFn) error
 	// ValuesAtPath returns a slice with the values found at the given query path
 	ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error)
+
+	// todo
+	DB() *bbolt.DB
 }
 
 // ReferenceFunc is the func type used for creating references.

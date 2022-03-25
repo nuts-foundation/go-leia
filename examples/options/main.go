@@ -40,11 +40,11 @@ func main() {
 		}
 	}()
 
-	s, err := leia.NewStore(path.Join(dir, "documents.db"), false)
+	s, err := leia.NewStore(path.Join(dir, "documents.db"))
 	if err != nil {
 		panic(err)
 	}
-	c := s.Collection("json")
+	c := s.JsonCollection("json")
 	var compoundIndex = c.NewIndex("compound",
 		leia.NewFieldIndexer(leia.NewJSONPath("id"), leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
 		leia.NewFieldIndexer(leia.NewJSONPath("obj.key"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),

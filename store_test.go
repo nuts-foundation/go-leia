@@ -29,7 +29,7 @@ import (
 func TestNewStore(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		f := filepath.Join(testDirectory(t), "test.db")
-		s, err := NewStore(f, true)
+		s, err := NewStore(f, WithoutSync())
 
 		if !assert.NoError(t, err) {
 			return
@@ -39,7 +39,7 @@ func TestNewStore(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		_, err := NewStore("store_test.go", true)
+		_, err := NewStore("store_test.go", WithoutSync())
 
 		assert.Error(t, err)
 	})
@@ -47,9 +47,9 @@ func TestNewStore(t *testing.T) {
 
 func TestStore_Collection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
-	s, _ := NewStore(f, true)
+	s, _ := NewStore(f, WithoutSync())
 
-	c := s.Collection("test")
+	c := s.JsonCollection("test")
 
 	if !assert.NotNil(t, c) {
 		return
