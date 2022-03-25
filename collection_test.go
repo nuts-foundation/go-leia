@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 )
@@ -401,7 +402,7 @@ func TestCollection_Get(t *testing.T) {
 	})
 }
 
-func TestCollection_ValuesAtPath(t *testing.T) {
+func TestCollection_JSONPathValueCollector(t *testing.T) {
 	json := []byte(`
 {
 	"id": 1,
@@ -497,6 +498,38 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 		_, err := c.ValuesAtPath(json, NewJSONPath("animals.#.nesting"))
 
 		assert.EqualError(t, err, "type at path not supported for indexing: {\n\t\t\t\t\"type\": \"bird\"\n\t\t\t}")
+	})
+}
+
+func TestCollection_JSONLDValueCollector(t *testing.T) {
+
+	document := Document(jsonLDExample)
+
+	c := collection{
+		documentProcessor: ld.NewJsonLdProcessor(),
+		valueCollector:    JSONLDValueCollector,
+	}
+
+	t.Run("ok - find a single string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/name"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "Jane Doe", values[0].value())
+	})
+
+	t.Run("ok - find a single nested string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/children", "http://example.com/name"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "John Doe", values[0].value())
 	})
 }
 

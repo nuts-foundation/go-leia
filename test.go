@@ -67,6 +67,36 @@ var jsonExample2 = `
 }
 `
 
+var jsonLDExample = `
+{
+  "@context": {
+    "id": "@id",
+    "type": "@type",
+    "schema": "http://example.com/",
+    "Person": {
+      "@id": "schema:Person",
+      "@context": {
+        "id": "@id",
+        "type": "@type",
+        
+        "name": {"@id": "schema:name"},
+        "telephone": {"@id": "schema:telephone"},
+        "url": {"@id": "schema:url"},
+        "children": {"@id": "schema:children", "@type": "@id"}
+      }
+    }
+  },
+  "@type": "Person",
+  "name": "Jane Doe",
+  "url": "http://www.janedoe.com",
+  "children": [{
+    "@type": "Person",
+    "name": "John Doe",
+	"url": "http://www.johndoe.org"
+  }]
+}
+`
+
 var invalidPathCharRegex = regexp.MustCompile("([^a-zA-Z0-9])")
 
 // testDirectory returns a temporary directory for this test only. Calling TestDirectory multiple times for the same

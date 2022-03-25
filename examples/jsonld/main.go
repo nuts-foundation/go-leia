@@ -86,7 +86,7 @@ func main() {
 	}
 
 	// populate
-	size := 4
+	size := 8
 	for i := 0; i < size; i++ {
 		var docs = make([]leia.Document, 0)
 		for j := 0; j < size; j++ {
@@ -104,7 +104,6 @@ func main() {
 
 	fmt.Println("added docs")
 
-	// only matches when toLower is working properly
 	query := leia.New(leia.Eq(leia.NewTermPath("http://example.com/name"), leia.MustParseScalar("name3"))).
 		And(leia.Eq(leia.NewTermPath("http://example.com/url"), leia.MustParseScalar("http://www.url3.com"))).
 		And(leia.Eq(leia.NewTermPath("http://example.com/children", "http://example.com/name"), leia.MustParseScalar("child3"))).
