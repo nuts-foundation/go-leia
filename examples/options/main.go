@@ -46,10 +46,10 @@ func main() {
 	}
 	c := s.Collection("json")
 	var compoundIndex = c.NewIndex("compound",
-		leia.NewFieldIndexer("id", leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
-		leia.NewFieldIndexer("obj.key", leia.AliasOption("obj"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
-		leia.NewFieldIndexer("list.#.key", leia.AliasOption("list"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
-		leia.NewFieldIndexer("list.#.subList", leia.AliasOption("sublist"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer(leia.NewJSONPath("id"), leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
+		leia.NewFieldIndexer(leia.NewJSONPath("obj.key"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer(leia.NewJSONPath("list.#.key"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer(leia.NewJSONPath("list.#.subList"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
 	)
 	err = c.AddIndex(compoundIndex)
 	if err != nil {
@@ -76,10 +76,10 @@ func main() {
 	fmt.Println("added docs")
 
 	// only matches when toLower is working properly
-	query := leia.New(leia.Eq("id", leia.MustParseScalar("id13"))).
-		And(leia.Eq("obj", leia.MustParseScalar("OBJ.VAL13"))).
-		And(leia.Eq("list", leia.MustParseScalar("LIST.VAL13"))).
-		And(leia.Eq("sublist", leia.MustParseScalar("SUBLIST.VAL13")))
+	query := leia.New(leia.Eq(leia.NewJSONPath("id"), leia.MustParseScalar("id13"))).
+		And(leia.Eq(leia.NewJSONPath("obj.key"), leia.MustParseScalar("OBJ.VAL13"))).
+		And(leia.Eq(leia.NewJSONPath("list.#.key"), leia.MustParseScalar("LIST.VAL13"))).
+		And(leia.Eq(leia.NewJSONPath("list.#.subList"), leia.MustParseScalar("SUBLIST.VAL13")))
 
 	j, err := c.Find(context.Background(), query)
 	if err != nil {
@@ -94,10 +94,10 @@ func main() {
 	fmt.Printf("found %d keys\n", i)
 
 	// only matches when range queries are working properly
-	query2 := leia.New(leia.Range("id", leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
-		And(leia.Range("obj", leia.MustParseScalar("OBJ.VAL13"), leia.MustParseScalar("OBJ.VAL14"))).
-		And(leia.Range("list", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14"))).
-		And(leia.Range("sublist", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14")))
+	query2 := leia.New(leia.Range(leia.NewJSONPath("id"), leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
+		And(leia.Range(leia.NewJSONPath("obj.key"), leia.MustParseScalar("OBJ.VAL13"), leia.MustParseScalar("OBJ.VAL14"))).
+		And(leia.Range(leia.NewJSONPath("list.#.key"), leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14"))).
+		And(leia.Range(leia.NewJSONPath("sublist.#.subList"), leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query2)
 	if err != nil {
@@ -113,8 +113,8 @@ func main() {
 	fmt.Printf("found %d keys\n", i)
 
 	// only matches when full table scan is working properly
-	query3 := leia.New(leia.Range("list.#.subList", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
-		And(leia.Range("list.#.key", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
+	query3 := leia.New(leia.Range(leia.NewJSONPath("list.#.subList"), leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
+		And(leia.Range(leia.NewJSONPath("list.#.key"), leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query3)
 	if err != nil {
@@ -123,9 +123,9 @@ func main() {
 	fmt.Printf("found %d docs\n", len(j))
 
 	// combination of an index and additional constraints
-	query4 := leia.New(leia.Range("id", leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
-		And(leia.Range("list.#.subList", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
-		And(leia.Range("list.#.key", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
+	query4 := leia.New(leia.Range(leia.NewJSONPath("id"), leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
+		And(leia.Range(leia.NewJSONPath("list.#.subList"), leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
+		And(leia.Range(leia.NewJSONPath("list.#.key"), leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query4)
 	if err != nil {

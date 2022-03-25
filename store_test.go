@@ -56,23 +56,23 @@ func TestStore_Collection(t *testing.T) {
 	}
 
 	t.Run("db is set", func(t *testing.T) {
-		assert.NotNil(t, c.(*collection).db)
+		assert.NotNil(t, c.(*jsonCollection).db)
 	})
 
 	t.Run("refMake is set", func(t *testing.T) {
-		assert.NotNil(t, c.(*collection).refMake)
+		assert.NotNil(t, c.(*jsonCollection).refMake)
 	})
 
 	t.Run("name is set", func(t *testing.T) {
-		assert.NotNil(t, c.(*collection).Name)
+		assert.NotNil(t, c.(*jsonCollection).name)
 	})
 
 	t.Run("collections are stored in instance", func(t *testing.T) {
 		_, c := testCollection(t)
 
-		assert.Len(t, c.IndexList, 0)
+		assert.Len(t, c.indexList, 0)
 		c.AddIndex(c.NewIndex("test", NewFieldIndexer("path")))
 
-		assert.Len(t, c.IndexList, 1)
+		assert.Len(t, c.indexList, 1)
 	})
 }

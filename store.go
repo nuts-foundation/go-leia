@@ -28,7 +28,7 @@ import (
 
 // Store is the main interface for storing/finding documents
 type Store interface {
-	// Collection creates or returns a collection.
+	// Collection creates or returns a jsonCollection.
 	// On the db level it's a bucket for the documents and 1 bucket per index.
 	Collection(name string) Collection
 	// Close closes the bbolt DB
@@ -38,7 +38,7 @@ type Store interface {
 // Store holds a reference to the bbolt data file and all collections.
 type store struct {
 	db          *bbolt.DB
-	collections map[string]*collection
+	collections map[string]*jsonCollection
 }
 
 // NewStore creates a new store.
@@ -59,7 +59,7 @@ func NewStore(dbFile string, noSync bool) (Store, error) {
 
 	st := &store{
 		db:          db,
-		collections: map[string]*collection{},
+		collections: map[string]*jsonCollection{},
 	}
 
 	return st, nil
@@ -68,8 +68,8 @@ func NewStore(dbFile string, noSync bool) (Store, error) {
 func (s *store) Collection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
-		c = &collection{
-			Name:    name,
+		c = &jsonCollection{
+			name:    name,
 			db:      s.db,
 			refMake: defaultReferenceCreator,
 		}

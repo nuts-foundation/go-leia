@@ -40,7 +40,7 @@ func TestCollection_AddIndex(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, c.IndexList, 1)
+		assert.Len(t, c.indexList, 1)
 	})
 
 	t.Run("ok - duplicate", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestCollection_AddIndex(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, c.IndexList, 1)
+		assert.Len(t, c.indexList, 1)
 	})
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestCollection_DropIndex(t *testing.T) {
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		db, c, i := testIndex(t)
 		i2 := c.NewIndex("other",
-			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer(NewJSONPath("path.part")),
 		)
 		_ = c.Add([]Document{exampleDoc})
 		_ = c.AddIndex(i)
@@ -432,7 +432,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 }
 `)
 
-	c := collection{}
+	c := jsonCollection{}
 
 	t.Run("ok - find a single float value", func(t *testing.T) {
 		values, err := c.ValuesAtPath(json, "id")
@@ -503,7 +503,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 }
 
-func testIndex(t *testing.T) (*bbolt.DB, collection, Index) {
+func testIndex(t *testing.T) (*bbolt.DB, jsonCollection, Index) {
 	db := testDB(t)
 	c := testCollectionWithDB(db)
 
@@ -512,21 +512,21 @@ func testIndex(t *testing.T) (*bbolt.DB, collection, Index) {
 	)
 }
 
-func testCollection(t *testing.T) (*bbolt.DB, collection) {
+func testCollection(t *testing.T) (*bbolt.DB, jsonCollection) {
 	db := testDB(t)
-	return db, collection{
-		Name:      "test",
+	return db, jsonCollection{
+		name:      "test",
 		db:        db,
-		IndexList: []Index{},
+		indexList: []Index{},
 		refMake:   defaultReferenceCreator,
 	}
 }
 
-func testCollectionWithDB(db *bbolt.DB) collection {
-	return collection{
-		Name:      "test",
+func testCollectionWithDB(db *bbolt.DB) jsonCollection {
+	return jsonCollection{
+		name:      "test",
 		db:        db,
-		IndexList: []Index{},
+		indexList: []Index{},
 		refMake:   defaultReferenceCreator,
 	}
 }

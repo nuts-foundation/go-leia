@@ -1,6 +1,6 @@
 /*
  * go-leia
- * Copyright (C) 2022 Nuts community
+ * Copyright (C) 2021 Nuts community
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,83 +21,20 @@ package leia
 
 import (
 	"context"
-	"crypto/sha1"
-	"errors"
 	"fmt"
 
 	"github.com/tidwall/gjson"
 	"go.etcd.io/bbolt"
 )
 
-// ErrNoIndex is returned when no index is found to query against
-var ErrNoIndex = errors.New("no index found")
-
-// DocumentWalker defines a function that is used as a callback for matching documents.
-// The key will be the document Reference (hash) and the value will be the raw document bytes
-type DocumentWalker func(key Reference, value []byte) error
-
-// documentCollection is the bucket that stores all the documents for a jsonCollection
-const documentCollection = "_documents"
-
-func documentCollectionByteRef() []byte {
-	return []byte(documentCollection)
-}
-
-// Collection defines a logical jsonCollection of documents and indices within a store.
-type Collection interface {
-	// AddIndex to this jsonCollection. It doesn't matter if the index already exists.
-	// If you want to override an index (by name) drop it first.
-	AddIndex(index ...Index) error
-	// DropIndex by name
-	DropIndex(name string) error
-	// NewIndex creates a new index from the context of this jsonCollection
-	// If multiple field indexers are given, a compound index is created.
-	NewIndex(name string, parts ...FieldIndexer) Index
-	// Add a set of documents to this jsonCollection
-	Add(jsonSet []Document) error
-	// Get returns the data for the given key or nil if not found
-	Get(ref Reference) (Document, error)
-	// Delete a document
-	Delete(doc Document) error
-	// Find queries the jsonCollection for documents
-	// returns ErrNoIndex when no suitable index can be found
-	// returns context errors when the context has been cancelled or deadline has exceeded.
-	// passing ctx prevents adding too many records to the result set.
-	Find(ctx context.Context, query Query) ([]Document, error)
-	// Reference uses the configured reference function to generate a reference of the function
-	Reference(doc Document) Reference
-	// Iterate over documents that match the given query
-	Iterate(query Query, walker DocumentWalker) error
-	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
-	// returns ErrNoIndex when no suitable index can be found
-	IndexIterate(query Query, fn ReferenceScanFn) error
-	// ValuesAtPath returns a slice with the values found at the given query path
-	ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error)
-}
-
-// ReferenceFunc is the func type used for creating references.
-// references are the key under which a document is stored.
-// a ReferenceFunc could be the sha256 func or something that stores document in chronological order.
-// The first would be best for random access, the latter for chronological access
-type ReferenceFunc func(doc Document) Reference
-
-// default for shasum docs
-func defaultReferenceCreator(doc Document) Reference {
-	s := sha1.Sum(doc)
-	var b = make([]byte, len(s))
-	copy(b, s[:])
-
-	return b
-}
-
-type collection struct {
-	Name      string `json:"name"`
+type jsonCollection struct {
+	name      string
 	db        *bbolt.DB
-	IndexList []Index `json:"indices"`
+	indexList []Index
 	refMake   ReferenceFunc
 }
 
-func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
+func (c *jsonCollection) NewIndex(name string, parts ...FieldIndexer) Index {
 	return &index{
 		name:       name,
 		indexParts: parts,
@@ -105,16 +42,16 @@ func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
 	}
 }
 
-func (c *collection) AddIndex(indexes ...Index) error {
+func (c *jsonCollection) AddIndex(indexes ...Index) error {
 	for _, index := range indexes {
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if i.Name() == index.Name() {
 				return nil
 			}
 		}
 
 		if err := c.db.Update(func(tx *bbolt.Tx) error {
-			bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+			bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 			if err != nil {
 				return err
 			}
@@ -139,22 +76,22 @@ func (c *collection) AddIndex(indexes ...Index) error {
 			return err
 		}
 
-		c.IndexList = append(c.IndexList, index)
+		c.indexList = append(c.indexList, index)
 	}
 
 	return nil
 }
 
-func (c *collection) DropIndex(name string) error {
+func (c *jsonCollection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 		if err != nil {
 			return err
 		}
 
-		var newIndices = make([]Index, len(c.IndexList))
+		var newIndices = make([]Index, len(c.indexList))
 		j := 0
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if name == i.Name() {
 				bucket.DeleteBucket(i.BucketName())
 			} else {
@@ -162,25 +99,25 @@ func (c *collection) DropIndex(name string) error {
 				j++
 			}
 		}
-		c.IndexList = newIndices[:j]
+		c.indexList = newIndices[:j]
 		return nil
 	})
 }
 
-func (c *collection) Reference(doc Document) Reference {
+func (c *jsonCollection) Reference(doc Document) Reference {
 	return c.refMake(doc)
 }
 
 // Add a json document set to the store
 // this uses a single transaction per set.
-func (c *collection) Add(jsonSet []Document) error {
+func (c *jsonCollection) Add(jsonSet []Document) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		return c.add(tx, jsonSet)
 	})
 }
 
-func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
-	bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+func (c *jsonCollection) add(tx *bbolt.Tx, jsonSet []Document) error {
+	bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 	if err != nil {
 		return err
 	}
@@ -195,7 +132,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 
 		// indices
 		// buckets are cached within tx
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			err = i.Add(bucket, ref, doc)
 			if err != nil {
 				return err
@@ -211,7 +148,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 	return nil
 }
 
-func (c *collection) Find(ctx context.Context, query Query) ([]Document, error) {
+func (c *jsonCollection) Find(ctx context.Context, query Query) ([]Document, error) {
 	docs := make([]Document, 0)
 	walker := func(key Reference, value []byte) error {
 		// stop iteration when needed
@@ -230,7 +167,7 @@ func (c *collection) Find(ctx context.Context, query Query) ([]Document, error) 
 	return docs, nil
 }
 
-func (c *collection) Iterate(query Query, fn DocumentWalker) error {
+func (c *jsonCollection) Iterate(query Query, fn DocumentWalker) error {
 	plan, err := c.queryPlan(query)
 	if err != nil {
 		return err
@@ -243,7 +180,7 @@ func (c *collection) Iterate(query Query, fn DocumentWalker) error {
 }
 
 // IndexIterate uses a query to loop over all keys and Entries in an index. It skips the resultScan and collect phase
-func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
+func (c *jsonCollection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	index := c.findIndex(query)
 	if index == nil {
 		return ErrNoIndex
@@ -261,15 +198,15 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 }
 
 // Delete a document from the store, this also removes the entries from indices
-func (c *collection) Delete(doc Document) error {
+func (c *jsonCollection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
 	return c.db.Update(func(tx *bbolt.Tx) error {
 		return c.delete(tx, doc)
 	})
 }
 
-func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	bucket := tx.Bucket([]byte(c.Name))
+func (c *jsonCollection) delete(tx *bbolt.Tx, doc Document) error {
+	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
 	}
@@ -286,7 +223,7 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	}
 
 	// indices
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		err = i.Delete(bucket, ref, doc)
 		if err != nil {
 			return err
@@ -296,11 +233,7 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	return nil
 }
 
-func (c *collection) queryPlan(query Query) (queryPlan, error) {
-	if query == nil {
-		return nil, ErrNoQuery
-	}
-
+func (c *jsonCollection) queryPlan(query Query) (queryPlan, error) {
 	index := c.findIndex(query)
 
 	if index == nil {
@@ -324,16 +257,12 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 // find a matching index.
 // The index may, at most, be one longer than the number of search options.
 // The longest index will win.
-func (c *collection) findIndex(query Query) Index {
-	if query == nil {
-		return nil
-	}
-
+func (c *jsonCollection) findIndex(query Query) Index {
 	// first map the indices to the number of matching search options
 	var cIndex Index
 	var cMatch float64
 
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		m := i.IsMatch(query)
 		if m > cMatch {
 			cIndex = i
@@ -344,7 +273,7 @@ func (c *collection) findIndex(query Query) Index {
 	return cIndex
 }
 
-func (c *collection) Get(key Reference) (Document, error) {
+func (c *jsonCollection) Get(key Reference) (Document, error) {
 	var err error
 	var data []byte
 
@@ -365,8 +294,8 @@ func (c *collection) Get(key Reference) (Document, error) {
 	return data, err
 }
 
-func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
-	bucket := tx.Bucket([]byte(c.Name))
+func (c *jsonCollection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
+	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
 	}
@@ -374,11 +303,16 @@ func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
 }
 
 // ValuesAtPath returns a slice with the values found at the given JSON path query
-func (c *collection) ValuesAtPath(document Document, jsonPath string) ([]Scalar, error) {
+func (c *jsonCollection) ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error) {
+	jsonPath, ok := queryPath.(jsonPath)
+	if !ok {
+		return nil, ErrInvalidQuery
+	}
+
 	if !gjson.ValidBytes(document) {
 		return nil, ErrInvalidJSON
 	}
-	result := gjson.GetBytes(document, jsonPath)
+	result := gjson.GetBytes(document, string(jsonPath))
 
 	return valuesFromResult(result)
 }
@@ -386,13 +320,9 @@ func (c *collection) ValuesAtPath(document Document, jsonPath string) ([]Scalar,
 func valuesFromResult(result gjson.Result) ([]Scalar, error) {
 	switch result.Type {
 	case gjson.String:
-		return []Scalar{stringScalar(result.Str)}, nil
-	case gjson.True:
-		return []Scalar{boolScalar(true)}, nil
-	case gjson.False:
-		return []Scalar{boolScalar(false)}, nil
+		return []Scalar{{value: result.Str}}, nil
 	case gjson.Number:
-		return []Scalar{float64Scalar(result.Num)}, nil
+		return []Scalar{{value: result.Num}}, nil
 	case gjson.Null:
 		return []Scalar{}, nil
 	default:

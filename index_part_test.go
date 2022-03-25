@@ -27,28 +27,13 @@ import (
 
 func TestNewIndexPart(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewFieldIndexer("path", AliasOption("name"))
+		ip := NewFieldIndexer(NewJSONPath("path"))
 
 		jip, ok := ip.(fieldIndexer)
 
 		if !assert.True(t, ok) {
 			return
 		}
-		assert.Equal(t, "name", jip.Name())
-		assert.Equal(t, "path", jip.path)
-	})
-}
-
-func TestJsonIndexPart_Name(t *testing.T) {
-	t.Run("ok - by alias", func(t *testing.T) {
-		ip := NewFieldIndexer("path", AliasOption("name"))
-
-		assert.Equal(t, "name", ip.Name())
-	})
-
-	t.Run("ok - by path", func(t *testing.T) {
-		ip := NewFieldIndexer("path")
-
-		assert.Equal(t, "path", ip.Name())
+		assert.Equal(t, "path", jip.QueryPath())
 	})
 }
