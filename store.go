@@ -98,10 +98,11 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 func (s *store) JsonCollection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
-		c = &jsonCollection{
-			name:    name,
-			db:      s.db,
-			refMake: defaultReferenceCreator,
+		c = &collection{
+			name:           name,
+			db:             s.db,
+			refMake:        defaultReferenceCreator,
+			valueCollector: JSONPathValueCollector,
 		}
 		s.collections[name] = c
 	}
@@ -112,10 +113,12 @@ func (s *store) JsonCollection(name string) Collection {
 func (s *store) JsonLDCollection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
-		c = &jsonldCollection{
-			name:    name,
-			db:      s.db,
-			refMake: defaultReferenceCreator,
+		c = &collection{
+			name:              name,
+			db:                s.db,
+			refMake:           defaultReferenceCreator,
+			documentProcessor: s.documentProcessor,
+			valueCollector:    JSONLDValueCollector,
 		}
 		s.collections[name] = c
 	}

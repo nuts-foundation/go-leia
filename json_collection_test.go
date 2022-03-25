@@ -427,7 +427,9 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 }
 `)
 
-	c := jsonCollection{}
+	c := collection{
+		valueCollector: JSONPathValueCollector,
+	}
 
 	t.Run("ok - find a single float value", func(t *testing.T) {
 		values, err := c.ValuesAtPath(json, NewJSONPath("id"))
@@ -498,7 +500,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 }
 
-func testIndex(t *testing.T) (*bbolt.DB, jsonCollection, Index) {
+func testIndex(t *testing.T) (*bbolt.DB, *collection, Index) {
 	db := testDB(t)
 	c := testCollectionWithDB(db)
 
@@ -507,21 +509,17 @@ func testIndex(t *testing.T) (*bbolt.DB, jsonCollection, Index) {
 	)
 }
 
-func testCollection(t *testing.T) (*bbolt.DB, jsonCollection) {
+func testCollection(t *testing.T) (*bbolt.DB, *collection) {
 	db := testDB(t)
-	return db, jsonCollection{
-		name:      "test",
-		db:        db,
-		indexList: []Index{},
-		refMake:   defaultReferenceCreator,
-	}
+	return db, testCollectionWithDB(db)
 }
 
-func testCollectionWithDB(db *bbolt.DB) jsonCollection {
-	return jsonCollection{
-		name:      "test",
-		db:        db,
-		indexList: []Index{},
-		refMake:   defaultReferenceCreator,
+func testCollectionWithDB(db *bbolt.DB) *collection {
+	return &collection{
+		name:           "test",
+		db:             db,
+		indexList:      []Index{},
+		refMake:        defaultReferenceCreator,
+		valueCollector: JSONPathValueCollector,
 	}
 }
