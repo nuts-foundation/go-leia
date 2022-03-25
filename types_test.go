@@ -76,3 +76,85 @@ func TestToBytes(t *testing.T) {
 		assert.Error(t, err)
 	})
 }
+
+func TestParseScalar(t *testing.T) {
+	t.Run("ok - string", func(t *testing.T) {
+		s, err := ParseScalar("string")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, "string", s.value())
+	})
+
+	t.Run("ok - number", func(t *testing.T) {
+		s, err := ParseScalar(1.0)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, 1.0, s.value())
+	})
+
+	t.Run("ok - true", func(t *testing.T) {
+		s, err := ParseScalar(true)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, true, s.value())
+	})
+
+	t.Run("ok - false", func(t *testing.T) {
+		s, err := ParseScalar(false)
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, false, s.value())
+	})
+
+	t.Run("err - unsupported", func(t *testing.T) {
+		_, err := ParseScalar(struct{}{})
+
+		assert.Equal(t, ErrInvalidValue, err)
+	})
+}
+
+func TestScalar_Bytes(t *testing.T) {
+	t.Run("ok - string", func(t *testing.T) {
+		s := stringScalar("string")
+
+		assert.Equal(t, []byte("string"), s.Bytes())
+	})
+
+	t.Run("ok - number", func(t *testing.T) {
+		s := float64Scalar(1.0)
+
+		assert.Equal(t, []byte{0x3f, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
+	})
+
+	t.Run("ok - negative number", func(t *testing.T) {
+		s := float64Scalar(-1.0)
+
+		assert.Equal(t, []byte{0xbf, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
+	})
+
+	t.Run("ok - 0", func(t *testing.T) {
+		s := float64Scalar(0.0)
+
+		assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
+	})
+
+	t.Run("ok - true", func(t *testing.T) {
+		s := boolScalar(true)
+
+		assert.Equal(t, []byte{0x01}, s.Bytes())
+	})
+
+	t.Run("ok - false", func(t *testing.T) {
+		s := boolScalar(false)
+
+		assert.Equal(t, []byte{0x0}, s.Bytes())
+	})
+}

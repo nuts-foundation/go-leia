@@ -29,14 +29,11 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-var exampleDoc = Document{raw: []byte(jsonExample)}
+var exampleDoc = []byte(jsonExample)
 
 func TestCollection_AddIndex(t *testing.T) {
-	db := testDB(t)
-	i := testIndex(t)
-
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection(db)
+		_, c, i := testIndex(t)
 		err := c.AddIndex(i)
 
 		if !assert.NoError(t, err) {
@@ -47,8 +44,8 @@ func TestCollection_AddIndex(t *testing.T) {
 	})
 
 	t.Run("ok - duplicate", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
 		err := c.AddIndex(i)
 
 		if !assert.NoError(t, err) {
@@ -59,7 +56,7 @@ func TestCollection_AddIndex(t *testing.T) {
 	})
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
-		c := createCollection(db)
+		db, c, i := testIndex(t)
 		err := c.Add([]Document{exampleDoc})
 		assert.NoError(t, err)
 		err = c.AddIndex(i)
@@ -70,27 +67,23 @@ func TestCollection_AddIndex(t *testing.T) {
 	})
 
 	t.Run("ok - adding existing index does nothing", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
+		db, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
 
 		assertIndexSize(t, db, i, 1)
 
-		c2 := createCollection(db)
-		c2.AddIndex(i)
+		_ = c.AddIndex(i)
 
 		assertIndexSize(t, db, i, 1)
 	})
 }
 
 func TestCollection_DropIndex(t *testing.T) {
-	db := testDB(t)
-	i := testIndex(t)
-
 	t.Run("ok - dropping index removes refs", func(t *testing.T) {
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
-		c.AddIndex(i)
+		db, c, i := testIndex(t)
+		_ = c.Add([]Document{exampleDoc})
+		_ = c.AddIndex(i)
 
 		if !assert.NoError(t, c.DropIndex(i.Name())) {
 			return
@@ -100,13 +93,13 @@ func TestCollection_DropIndex(t *testing.T) {
 	})
 
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
-		i2 := NewIndex("other",
+		db, c, i := testIndex(t)
+		i2 := c.NewIndex("other",
 			NewFieldIndexer("path.part", AliasOption("key")),
 		)
-		c := createCollection(db)
-		c.Add([]Document{exampleDoc})
-		c.AddIndex(i)
-		c.AddIndex(i2)
+		_ = c.Add([]Document{exampleDoc})
+		_ = c.AddIndex(i)
+		_ = c.AddIndex(i2)
 
 		if !assert.NoError(t, c.DropIndex(i.Name())) {
 			return
@@ -117,10 +110,8 @@ func TestCollection_DropIndex(t *testing.T) {
 }
 
 func TestCollection_Add(t *testing.T) {
-	db := testDB(t)
-
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection(db)
+		db, c := testCollection(t)
 		err := c.Add([]Document{exampleDoc})
 		if !assert.NoError(t, err) {
 			return
@@ -131,13 +122,10 @@ func TestCollection_Add(t *testing.T) {
 }
 
 func TestCollection_Delete(t *testing.T) {
-	i := testIndex(t)
-
 	t.Run("ok", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
+		db, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
 
 		err := c.Delete(exampleDoc)
 		if !assert.NoError(t, err) {
@@ -149,8 +137,7 @@ func TestCollection_Delete(t *testing.T) {
 	})
 
 	t.Run("ok - not added", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
+		db, c, _ := testIndex(t)
 
 		err := c.Delete(exampleDoc)
 		if !assert.NoError(t, err) {
@@ -162,14 +149,11 @@ func TestCollection_Delete(t *testing.T) {
 }
 
 func TestCollection_Find(t *testing.T) {
-	db := testDB(t)
-	i := testIndex(t)
-
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -181,10 +165,10 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("ok - with ResultScan", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value")).And(Eq("non_indexed", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value"))).And(Eq("non_indexed", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -196,10 +180,10 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("ok - with Full table scan", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("non_indexed", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("non_indexed", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -211,10 +195,10 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("ok - with ResultScan and range query", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value")).And(Range("non_indexed", "v", "value1"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value"))).And(Range("non_indexed", MustParseScalar("v"), MustParseScalar("value1")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -226,10 +210,11 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("ok - with ResultScan, range query not found", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value")).And(Range("non_indexed", "value1", "value2"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value"))).And(
+			Range("non_indexed", MustParseScalar("value1"), MustParseScalar("value2")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -241,10 +226,9 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("ok - no docs", func(t *testing.T) {
-		db := testDB(t)
-		c := createCollection(db)
-		c.AddIndex(i)
-		q := New(Eq("key", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		q := New(Eq("key", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -255,21 +239,10 @@ func TestCollection_Find(t *testing.T) {
 		assert.Len(t, docs, 0)
 	})
 
-	t.Run("error - incorrect query", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", struct{}{}))
-
-		_, err := c.Find(context.TODO(), q)
-
-		assert.Error(t, err)
-	})
-
 	t.Run("error - nil query", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
 
 		_, err := c.Find(context.TODO(), nil)
 
@@ -277,10 +250,10 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("error - ctx cancelled", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value")))
 		ctx, cancelFn := context.WithCancel(context.Background())
 
 		cancelFn()
@@ -294,10 +267,10 @@ func TestCollection_Find(t *testing.T) {
 	})
 
 	t.Run("error - deadline exceeded", func(t *testing.T) {
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{exampleDoc})
-		q := New(Eq("key", "value"))
+		_, c, i := testIndex(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{exampleDoc})
+		q := New(Eq("key", MustParseScalar("value")))
 		ctx, _ := context.WithTimeout(context.Background(), time.Nanosecond)
 
 		_, err := c.Find(ctx, q)
@@ -311,12 +284,10 @@ func TestCollection_Find(t *testing.T) {
 }
 
 func TestCollection_Iterate(t *testing.T) {
-	db := testDB(t)
-	i := testIndex(t)
-	c := createCollection(db)
-	c.AddIndex(i)
-	c.Add([]Document{exampleDoc})
-	q := New(Eq("key", "value"))
+	_, c, i := testIndex(t)
+	_ = c.AddIndex(i)
+	_ = c.Add([]Document{exampleDoc})
+	q := New(Eq("key", MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -331,19 +302,18 @@ func TestCollection_Iterate(t *testing.T) {
 	})
 
 	t.Run("ok - document indexed multiple times, query should un double", func(t *testing.T) {
-		doc := DocumentFromString(jsonExample)
-		doc2 := DocumentFromString(jsonExample2)
-		db := testDB(t)
+		doc := []byte(jsonExample)
+		doc2 := []byte(jsonExample2)
 		count := 0
 
-		i := NewIndex(t.Name(),
+		i := c.NewIndex(t.Name(),
 			NewFieldIndexer("path.part", AliasOption("key")),
 			NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
 		)
 
-		c := createCollection(db)
-		c.AddIndex(i)
-		c.Add([]Document{doc, doc2})
+		_, c := testCollection(t)
+		_ = c.AddIndex(i)
+		_ = c.Add([]Document{doc, doc2})
 
 		err := c.Iterate(q, func(key Reference, value []byte) error {
 			count++
@@ -356,7 +326,7 @@ func TestCollection_Iterate(t *testing.T) {
 
 	t.Run("error", func(t *testing.T) {
 		err := c.Iterate(q, func(key Reference, value []byte) error {
-			return errors.New("b00m!")
+			return errors.New("b00m")
 		})
 
 		assert.Error(t, err)
@@ -364,12 +334,10 @@ func TestCollection_Iterate(t *testing.T) {
 }
 
 func TestCollection_IndexIterate(t *testing.T) {
-	db := testDB(t)
-	i := testIndex(t)
-	c := createCollection(db)
-	c.AddIndex(i)
-	c.Add([]Document{exampleDoc})
-	q := New(Eq("key", "value"))
+	db, c, i := testIndex(t)
+	_ = c.AddIndex(i)
+	_ = c.Add([]Document{exampleDoc})
+	q := New(Eq("key", MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -388,7 +356,7 @@ func TestCollection_IndexIterate(t *testing.T) {
 	t.Run("error", func(t *testing.T) {
 		err := db.View(func(tx *bbolt.Tx) error {
 			return c.IndexIterate(q, func(key []byte, value []byte) error {
-				return errors.New("b00m!")
+				return errors.New("b00m")
 			})
 		})
 
@@ -397,10 +365,8 @@ func TestCollection_IndexIterate(t *testing.T) {
 }
 
 func TestCollection_Reference(t *testing.T) {
-	db := testDB(t)
-
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection(db)
+		_, c := testCollection(t)
 
 		ref := c.Reference(exampleDoc)
 
@@ -409,10 +375,8 @@ func TestCollection_Reference(t *testing.T) {
 }
 
 func TestCollection_Get(t *testing.T) {
-	db := testDB(t)
-
 	t.Run("ok", func(t *testing.T) {
-		c := createCollection(db)
+		_, c := testCollection(t)
 		ref := defaultReferenceCreator(exampleDoc)
 		if err := c.Add([]Document{exampleDoc}); err != nil {
 			t.Fatal(err)
@@ -425,12 +389,12 @@ func TestCollection_Get(t *testing.T) {
 		}
 
 		if assert.NotNil(t, d) {
-			assert.Equal(t, exampleDoc, *d)
+			assert.Equal(t, Document(exampleDoc), d)
 		}
 	})
 
 	t.Run("error - not found", func(t *testing.T) {
-		c := createCollection(db)
+		_, c := testCollection(t)
 
 		d, err := c.Get([]byte("test"))
 
@@ -442,13 +406,123 @@ func TestCollection_Get(t *testing.T) {
 	})
 }
 
-func testIndex(t *testing.T) Index {
-	return NewIndex(t.Name(),
+func TestCollection_ValuesAtPath(t *testing.T) {
+	json := []byte(`
+{
+	"id": 1,
+	"name": "test",
+	"colors": ["blue", "orange"],
+	"items" : [
+		{
+			"type": "car",
+			"count": 2
+		},
+		{
+			"type": "bike",
+			"count": 5
+		}
+	],
+	"animals": [
+		{
+			"nesting": {
+				"type": "bird"
+			}
+		}
+	]
+}
+`)
+
+	c := collection{}
+
+	t.Run("ok - find a single float value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(json, "id")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, 1.0, values[0].value())
+	})
+
+	t.Run("ok - find a single string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(json, "name")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "test", values[0].value())
+	})
+
+	t.Run("ok - find a list of values", func(t *testing.T) {
+		values, err := c.ValuesAtPath(json, "colors")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 2)
+		assert.Equal(t, "blue", values[0].value())
+		assert.Equal(t, "orange", values[1].value())
+	})
+
+	t.Run("ok - find a list of values from a sublist", func(t *testing.T) {
+		values, err := c.ValuesAtPath(json, "items.#.type")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 2)
+		assert.Equal(t, "car", values[0].value())
+		assert.Equal(t, "bike", values[1].value())
+	})
+
+	t.Run("ok - values at an unknown path", func(t *testing.T) {
+		values, err := c.ValuesAtPath(json, "unknown")
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 0)
+	})
+
+	t.Run("error - invalid json", func(t *testing.T) {
+		_, err := c.ValuesAtPath([]byte("}"), "id")
+
+		assert.Equal(t, ErrInvalidJSON, err)
+	})
+
+	t.Run("error - indexing an object", func(t *testing.T) {
+		_, err := c.ValuesAtPath(json, "animals.#.nesting")
+
+		assert.EqualError(t, err, "type at path not supported for indexing: {\n\t\t\t\t\"type\": \"bird\"\n\t\t\t}")
+	})
+}
+
+func testIndex(t *testing.T) (*bbolt.DB, collection, Index) {
+	db := testDB(t)
+	c := testCollectionWithDB(db)
+
+	return db, c, c.NewIndex(t.Name(),
 		NewFieldIndexer("path.part", AliasOption("key")),
 	)
 }
 
-func createCollection(db *bbolt.DB) collection {
+func testCollection(t *testing.T) (*bbolt.DB, collection) {
+	db := testDB(t)
+	return db, collection{
+		Name:      "test",
+		db:        db,
+		IndexList: []Index{},
+		refMake:   defaultReferenceCreator,
+	}
+}
+
+func testCollectionWithDB(db *bbolt.DB) collection {
 	return collection{
 		Name:      "test",
 		db:        db,

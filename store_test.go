@@ -68,11 +68,11 @@ func TestStore_Collection(t *testing.T) {
 	})
 
 	t.Run("collections are stored in instance", func(t *testing.T) {
-		c2 := s.Collection("test").(*collection)
+		_, c := testCollection(t)
 
-		assert.Len(t, c2.IndexList, 0)
-		c.AddIndex(NewIndex("test", NewFieldIndexer("path")))
+		assert.Len(t, c.IndexList, 0)
+		c.AddIndex(c.NewIndex("test", NewFieldIndexer("path")))
 
-		assert.Len(t, c2.IndexList, 1)
+		assert.Len(t, c.IndexList, 1)
 	})
 }

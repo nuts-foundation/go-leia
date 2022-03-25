@@ -30,13 +30,6 @@ import (
 )
 
 func main() {
-	var compoundIndex = leia.NewIndex("compound",
-		leia.NewFieldIndexer("id", leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
-		leia.NewFieldIndexer("obj.key", leia.AliasOption("obj"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
-		leia.NewFieldIndexer("list.#.key", leia.AliasOption("list"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
-		leia.NewFieldIndexer("list.#.subList", leia.AliasOption("sublist"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
-	)
-
 	dir, err := ioutil.TempDir("", "options")
 	if err != nil {
 		panic(err)
@@ -52,16 +45,19 @@ func main() {
 		panic(err)
 	}
 	c := s.Collection("json")
-	if err != nil {
-		panic(err)
-	}
+	var compoundIndex = c.NewIndex("compound",
+		leia.NewFieldIndexer("id", leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
+		leia.NewFieldIndexer("obj.key", leia.AliasOption("obj"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer("list.#.key", leia.AliasOption("list"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+		leia.NewFieldIndexer("list.#.subList", leia.AliasOption("sublist"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),
+	)
 	err = c.AddIndex(compoundIndex)
 	if err != nil {
 		panic(err)
 	}
 
 	// populate
-	size := 32
+	size := 16
 	for i := 0; i < size; i++ {
 		var docs = make([]leia.Document, 0)
 		for j := 0; j < size; j++ {
@@ -80,10 +76,10 @@ func main() {
 	fmt.Println("added docs")
 
 	// only matches when toLower is working properly
-	query := leia.New(leia.Eq("id", "id16")).
-		And(leia.Eq("obj", "OBJ.VAL16")).
-		And(leia.Eq("list", "LIST.VAL16")).
-		And(leia.Eq("sublist", "SUBLIST.VAL16"))
+	query := leia.New(leia.Eq("id", leia.MustParseScalar("id13"))).
+		And(leia.Eq("obj", leia.MustParseScalar("OBJ.VAL13"))).
+		And(leia.Eq("list", leia.MustParseScalar("LIST.VAL13"))).
+		And(leia.Eq("sublist", leia.MustParseScalar("SUBLIST.VAL13")))
 
 	j, err := c.Find(context.Background(), query)
 	if err != nil {
@@ -98,10 +94,10 @@ func main() {
 	fmt.Printf("found %d keys\n", i)
 
 	// only matches when range queries are working properly
-	query2 := leia.New(leia.Range("id", "ID16", "ID17")).
-		And(leia.Range("obj", "OBJ.VAL16", "OBJ.VAL17")).
-		And(leia.Range("list", "LIST.VAL16", "LIST.VAL17")).
-		And(leia.Range("sublist", "SUBLIST.VAL16", "SUBLIST.VAL17"))
+	query2 := leia.New(leia.Range("id", leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
+		And(leia.Range("obj", leia.MustParseScalar("OBJ.VAL13"), leia.MustParseScalar("OBJ.VAL14"))).
+		And(leia.Range("list", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14"))).
+		And(leia.Range("sublist", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query2)
 	if err != nil {
@@ -117,8 +113,8 @@ func main() {
 	fmt.Printf("found %d keys\n", i)
 
 	// only matches when full table scan is working properly
-	query3 := leia.New(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
-		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
+	query3 := leia.New(leia.Range("list.#.subList", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
+		And(leia.Range("list.#.key", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query3)
 	if err != nil {
@@ -127,9 +123,9 @@ func main() {
 	fmt.Printf("found %d docs\n", len(j))
 
 	// combination of an index and additional constraints
-	query4 := leia.New(leia.Range("id", "ID16", "ID17")).
-		And(leia.Range("list.#.subList", "SUBLIST.VAL16", "SUBLIST.VAL17")).
-		And(leia.Range("list.#.key", "LIST.VAL16", "LIST.VAL17"))
+	query4 := leia.New(leia.Range("id", leia.MustParseScalar("ID13"), leia.MustParseScalar("ID14"))).
+		And(leia.Range("list.#.subList", leia.MustParseScalar("SUBLIST.VAL13"), leia.MustParseScalar("SUBLIST.VAL14"))).
+		And(leia.Range("list.#.key", leia.MustParseScalar("LIST.VAL13"), leia.MustParseScalar("LIST.VAL14")))
 
 	j, err = c.Find(context.Background(), query4)
 	if err != nil {
@@ -163,5 +159,5 @@ func genJson(i, j, k, l int) leia.Document {
 
 	gen := fmt.Sprintf(jsonTemplate1, id, key, key2, key3)
 
-	return leia.DocumentFromString(gen)
+	return []byte(gen)
 }

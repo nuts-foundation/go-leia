@@ -21,9 +21,11 @@ package leia
 
 import (
 	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -93,7 +95,7 @@ func withinBucket(t *testing.T, db *bbolt.DB, fn testFunc) error {
 }
 
 func testDB(t *testing.T) *bbolt.DB {
-	db, err := bbolt.Open(filepath.Join(testDirectory(t), "test.db"), boltDBFileMode, bbolt.DefaultOptions)
+	db, err := bbolt.Open(filepath.Join(testDirectory(t), "test.db"), boltDBFileMode, &bbolt.Options{NoSync: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -187,4 +189,23 @@ func assertSize(t *testing.T, db *bbolt.DB, bucketName string, size int) bool {
 	})
 
 	return assert.NoError(t, err)
+}
+
+func toBytes(data interface{}) ([]byte, error) {
+	switch castData := data.(type) {
+	case []uint8:
+		return castData, nil
+	case uint32:
+		var buf [4]byte
+		binary.BigEndian.PutUint32(buf[:], castData)
+		return buf[:], nil
+	case string:
+		return []byte(castData), nil
+	case float64:
+		var buf [8]byte
+		binary.BigEndian.PutUint64(buf[:], math.Float64bits(castData))
+		return buf[:], nil
+	}
+
+	return nil, errors.New("couldn't convert data to []byte")
 }

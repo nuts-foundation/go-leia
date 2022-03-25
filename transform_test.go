@@ -40,39 +40,30 @@ func (t testIndexPart) Name() string {
 	return t.name
 }
 
-func (t testIndexPart) Keys(document Document) ([]Key, error) {
-	words := t.tokenizer(string(document.raw))
-	keys := make([]Key, len(words))
-	for i, w := range words {
-		transformed := t.Transform(w)
-		keys[i] = []byte(transformed.(string))
-	}
-	return keys, nil
+func (t testIndexPart) Path() string {
+	return t.name
 }
 
-func (t testIndexPart) Tokenize(value interface{}) []interface{} {
+func (t testIndexPart) Tokenize(value Scalar) []Scalar {
 	if t.tokenizer == nil {
-		return []interface{}{value}
+		return []Scalar{value}
 	}
-	if s, ok := value.(string); ok {
-		tokens := t.tokenizer(s)
-		result := make([]interface{}, len(tokens))
+	if s, ok := value.(stringScalar); ok {
+		tokens := t.tokenizer(string(s))
+		result := make([]Scalar, len(tokens))
 		for i, t := range tokens {
-			result[i] = t
+			result[i] = stringScalar(t)
 		}
 		return result
 	}
-	return []interface{}{value}
+	return []Scalar{value}
 }
 
-func (t testIndexPart) Transform(value interface{}) interface{} {
+func (t testIndexPart) Transform(value Scalar) Scalar {
 	if t.transformer == nil {
 		return value
 	}
-	if s, ok := value.(string); ok {
-		return t.transformer(s)
-	}
-	return value
+	return t.transformer(value)
 }
 
 func (t testIndexPart) Transformer() Transform {
@@ -80,16 +71,16 @@ func (t testIndexPart) Transformer() Transform {
 }
 
 func TestIndex_Add(t *testing.T) {
-	i := NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
-	db := testDB(t)
+	db, c := testCollection(t)
+	i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 	t.Run("ok - single word", func(t *testing.T) {
 		ref := []byte("01")
-		doc := []byte("WORD")
+		doc := []byte(`{"part": "WORD"}`)
 		key := []byte("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw: doc})
+			return i.Add(bucket, ref, doc)
 		})
 
 		assert.NoError(t, err)
@@ -99,12 +90,12 @@ func TestIndex_Add(t *testing.T) {
 
 	t.Run("ok - sentence", func(t *testing.T) {
 		ref := []byte("01")
-		doc := []byte("WORD1 WORD2")
+		doc := []byte(`{"part": "WORD1 WORD2"}`)
 		key1 := []byte("word1")
 		key2 := []byte("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw: doc})
+			return i.Add(bucket, ref, doc)
 		})
 
 		assert.NoError(t, err)
@@ -115,17 +106,16 @@ func TestIndex_Add(t *testing.T) {
 }
 
 func TestIndex_Iterate(t *testing.T) {
-	i := NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
-
 	t.Run("ok - single word", func(t *testing.T) {
-		db := testDB(t)
+		db, c := testCollection(t)
+		i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 		ref := []byte("01")
-		doc := []byte("WORD")
-		key := []byte("word")
+		doc := []byte(`{"part": "WORD"}`)
+		key := MustParseScalar("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw: doc})
+			return i.Add(bucket, ref, doc)
 		})
 
 		if !assert.NoError(t, err) {
@@ -147,14 +137,15 @@ func TestIndex_Iterate(t *testing.T) {
 	})
 
 	t.Run("ok - sentence", func(t *testing.T) {
-		db := testDB(t)
+		db, c := testCollection(t)
+		i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 		ref := []byte("01")
-		doc := []byte("WORD1 WORD2")
-		key2 := []byte("word2")
+		doc := []byte(`{"part": "WORD1 WORD2"}`)
+		key2 := MustParseScalar("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
-			return i.Add(bucket, ref, Document{raw: doc})
+			return i.Add(bucket, ref, doc)
 		})
 
 		if !assert.NoError(t, err) {

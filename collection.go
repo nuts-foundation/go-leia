@@ -23,7 +23,9 @@ import (
 	"context"
 	"crypto/sha1"
 	"errors"
+	"fmt"
 
+	"github.com/tidwall/gjson"
 	"go.etcd.io/bbolt"
 )
 
@@ -48,10 +50,13 @@ type Collection interface {
 	AddIndex(index ...Index) error
 	// DropIndex by name
 	DropIndex(name string) error
+	// NewIndex creates a new index from the context of this collection
+	// If multiple field indexers are given, a compound index is created.
+	NewIndex(name string, parts ...FieldIndexer) Index
 	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
 	// Get returns the data for the given key or nil if not found
-	Get(ref Reference) (*Document, error)
+	Get(ref Reference) (Document, error)
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
@@ -66,6 +71,8 @@ type Collection interface {
 	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
 	IndexIterate(query Query, fn ReferenceScanFn) error
+	// ValuesAtPath returns a slice with the values found at the given JSON path query
+	ValuesAtPath(document Document, jsonPath string) ([]Scalar, error)
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -76,7 +83,7 @@ type ReferenceFunc func(doc Document) Reference
 
 // default for shasum docs
 func defaultReferenceCreator(doc Document) Reference {
-	s := sha1.Sum(doc.raw)
+	s := sha1.Sum(doc)
 	var b = make([]byte, len(s))
 	copy(b, s[:])
 
@@ -88,6 +95,14 @@ type collection struct {
 	db        *bbolt.DB
 	IndexList []Index `json:"indices"`
 	refMake   ReferenceFunc
+}
+
+func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
+	return &index{
+		name:       name,
+		indexParts: parts,
+		collection: c,
+	}
 }
 
 func (c *collection) AddIndex(indexes ...Index) error {
@@ -116,7 +131,7 @@ func (c *collection) AddIndex(indexes ...Index) error {
 
 			cur := gBucket.Cursor()
 			for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-				index.Add(bucket, ref, Document{raw: doc})
+				index.Add(bucket, ref, doc)
 			}
 
 			return nil
@@ -187,7 +202,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 			}
 		}
 
-		err = docBucket.Put(ref, doc.raw)
+		err = docBucket.Put(ref, doc)
 		if err != nil {
 			return err
 		}
@@ -204,7 +219,7 @@ func (c *collection) Find(ctx context.Context, query Query) ([]Document, error) 
 			return err
 		}
 
-		docs = append(docs, DocumentFromBytes(value))
+		docs = append(docs, value)
 		return nil
 	}
 
@@ -329,7 +344,7 @@ func (c *collection) findIndex(query Query) Index {
 	return cIndex
 }
 
-func (c *collection) Get(key Reference) (*Document, error) {
+func (c *collection) Get(key Reference) (Document, error) {
 	var err error
 	var data []byte
 
@@ -347,7 +362,7 @@ func (c *collection) Get(key Reference) (*Document, error) {
 		return nil, nil
 	}
 
-	return &Document{raw: data}, err
+	return data, err
 }
 
 func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
@@ -356,4 +371,42 @@ func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
 		return nil
 	}
 	return bucket.Bucket(documentCollectionByteRef())
+}
+
+// ValuesAtPath returns a slice with the values found at the given JSON path query
+func (c *collection) ValuesAtPath(document Document, jsonPath string) ([]Scalar, error) {
+	if !gjson.ValidBytes(document) {
+		return nil, ErrInvalidJSON
+	}
+	result := gjson.GetBytes(document, jsonPath)
+
+	return valuesFromResult(result)
+}
+
+func valuesFromResult(result gjson.Result) ([]Scalar, error) {
+	switch result.Type {
+	case gjson.String:
+		return []Scalar{stringScalar(result.Str)}, nil
+	case gjson.True:
+		return []Scalar{boolScalar(true)}, nil
+	case gjson.False:
+		return []Scalar{boolScalar(false)}, nil
+	case gjson.Number:
+		return []Scalar{float64Scalar(result.Num)}, nil
+	case gjson.Null:
+		return []Scalar{}, nil
+	default:
+		if result.IsArray() {
+			keys := make([]Scalar, 0)
+			for _, subResult := range result.Array() {
+				subKeys, err := valuesFromResult(subResult)
+				if err != nil {
+					return nil, err
+				}
+				keys = append(keys, subKeys...)
+			}
+			return keys, nil
+		}
+	}
+	return nil, fmt.Errorf("type at path not supported for indexing: %s", result.String())
 }

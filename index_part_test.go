@@ -20,8 +20,6 @@
 package leia
 
 import (
-	"encoding/binary"
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -52,87 +50,5 @@ func TestJsonIndexPart_Name(t *testing.T) {
 		ip := NewFieldIndexer("path")
 
 		assert.Equal(t, "path", ip.Name())
-	})
-}
-
-func TestJsonIndexPart_Keys(t *testing.T) {
-	json := `
-{
-	"path": {
-		"part": "value",
-		"parts": ["value1", "value2"],
-		"more": [{
-			"parts": 0.0
-		}]
-	}
-}
-`
-	document := Document{raw: []byte(json)}
-
-	t.Run("ok - sub object", func(t *testing.T) {
-		ip := NewFieldIndexer("path.part")
-		keys, err := ip.Keys(document)
-
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, keys, 1) {
-			return
-		}
-
-		assert.Equal(t, "value", string(keys[0]))
-	})
-
-	t.Run("ok - sub sub object", func(t *testing.T) {
-		ip := NewFieldIndexer("path.more.#.parts")
-		keys, err := ip.Keys(document)
-
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, keys, 1) {
-			return
-		}
-
-		bits := binary.BigEndian.Uint64(keys[0])
-		fl := math.Float64frombits(bits)
-
-		assert.Equal(t, 0.0, fl)
-	})
-
-	t.Run("ok - list", func(t *testing.T) {
-		ip := NewFieldIndexer("path.parts")
-		keys, err := ip.Keys(document)
-
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		if !assert.Len(t, keys, 2) {
-			return
-		}
-
-		assert.Equal(t, "value1", string(keys[0]))
-		assert.Equal(t, "value2", string(keys[1]))
-	})
-
-	t.Run("ok - no match", func(t *testing.T) {
-		ip := NewFieldIndexer("path.party")
-		keys, err := ip.Keys(document)
-
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		assert.Len(t, keys, 0)
-	})
-
-	t.Run("error - incorrect document", func(t *testing.T) {
-		ip := NewFieldIndexer("path.part")
-		_, err := ip.Keys(Document{raw: []byte("}")})
-
-		assert.Error(t, err)
 	})
 }
