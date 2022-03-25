@@ -111,14 +111,14 @@ func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
 
 func (c *collection) AddIndex(indexes ...Index) error {
 	for _, index := range indexes {
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if i.Name() == index.Name() {
 				return nil
 			}
 		}
 
 		if err := c.db.Update(func(tx *bbolt.Tx) error {
-			bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+			bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 			if err != nil {
 				return err
 			}
@@ -143,7 +143,7 @@ func (c *collection) AddIndex(indexes ...Index) error {
 			return err
 		}
 
-		c.IndexList = append(c.IndexList, index)
+		c.indexList = append(c.indexList, index)
 	}
 
 	return nil
@@ -151,14 +151,14 @@ func (c *collection) AddIndex(indexes ...Index) error {
 
 func (c *collection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 		if err != nil {
 			return err
 		}
 
-		var newIndices = make([]Index, len(c.IndexList))
+		var newIndices = make([]Index, len(c.indexList))
 		j := 0
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if name == i.Name() {
 				bucket.DeleteBucket(i.BucketName())
 			} else {
@@ -166,7 +166,7 @@ func (c *collection) DropIndex(name string) error {
 				j++
 			}
 		}
-		c.IndexList = newIndices[:j]
+		c.indexList = newIndices[:j]
 		return nil
 	})
 }
@@ -184,7 +184,7 @@ func (c *collection) Add(jsonSet []Document) error {
 }
 
 func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
-	bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+	bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 
 		// indices
 		// buckets are cached within tx
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			err = i.Add(bucket, ref, doc)
 			if err != nil {
 				return err
@@ -273,7 +273,7 @@ func (c *collection) Delete(doc Document) error {
 }
 
 func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	bucket := tx.Bucket([]byte(c.Name))
+	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
 	}
@@ -290,7 +290,7 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	}
 
 	// indices
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		err = i.Delete(bucket, ref, doc)
 		if err != nil {
 			return err
@@ -301,10 +301,6 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 }
 
 func (c *collection) queryPlan(query Query) (queryPlan, error) {
-	if query == nil {
-		return nil, ErrNoQuery
-	}
-
 	index := c.findIndex(query)
 
 	if index == nil {
@@ -329,15 +325,11 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 // The index may, at most, be one longer than the number of search options.
 // The longest index will win.
 func (c *collection) findIndex(query Query) Index {
-	if query == nil {
-		return nil
-	}
-
 	// first map the indices to the number of matching search options
 	var cIndex Index
 	var cMatch float64
 
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		m := i.IsMatch(query)
 		if m > cMatch {
 			cIndex = i
