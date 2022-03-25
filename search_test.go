@@ -26,31 +26,28 @@ import (
 )
 
 var testAsScalar = MustParseScalar("test")
+var testJsonPath = NewJSONPath("test")
 
 func TestNew(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		q := New(Eq("test", testAsScalar))
+		q := New(Eq(testJsonPath, testAsScalar))
 
-		assert.Len(t, q.Parts(), 1)
+		assert.Len(t, q.parts, 1)
 	})
 }
 
 func TestQuery_And(t *testing.T) {
-	q := New(Eq("test", testAsScalar))
+	q := New(Eq(testJsonPath, testAsScalar))
 
 	t.Run("ok", func(t *testing.T) {
-		q = q.And(Eq("test", testAsScalar))
+		q = q.And(Eq(testJsonPath, testAsScalar))
 
-		assert.Len(t, q.Parts(), 2)
+		assert.Len(t, q.parts, 2)
 	})
 }
 
 func TestEq(t *testing.T) {
-	qp := Eq("test", testAsScalar)
-
-	t.Run("ok - name", func(t *testing.T) {
-		assert.Equal(t, "test", qp.Name())
-	})
+	qp := Eq(testJsonPath, testAsScalar)
 
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
@@ -72,11 +69,7 @@ func TestEq(t *testing.T) {
 }
 
 func TestRange(t *testing.T) {
-	qp := Range("test", MustParseScalar("a"), MustParseScalar("b"))
-
-	t.Run("ok - name", func(t *testing.T) {
-		assert.Equal(t, "test", qp.Name())
-	})
+	qp := Range(testJsonPath, MustParseScalar("a"), MustParseScalar("b"))
 
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
@@ -110,11 +103,7 @@ func TestRange(t *testing.T) {
 }
 
 func TestPrefix(t *testing.T) {
-	qp := Prefix("test", testAsScalar)
-
-	t.Run("ok - name", func(t *testing.T) {
-		assert.Equal(t, "test", qp.Name())
-	})
+	qp := Prefix(testJsonPath, testAsScalar)
 
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
@@ -129,7 +118,7 @@ func TestPrefix(t *testing.T) {
 	})
 
 	t.Run("ok - condition true with transform", func(t *testing.T) {
-		qp := Prefix("test", MustParseScalar("TEST"))
+		qp := Prefix(testJsonPath, MustParseScalar("TEST"))
 
 		c := qp.Condition(Key("test something"), ToLower)
 

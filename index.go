@@ -26,10 +26,10 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// Index describes an index. An index is based on a json path and has a name.
-// The name is used for storage but also as identifier in search options.
+// Index describes an index. An index is based on a json path and has a path.
+// The path is used for storage but also as identifier in search options.
 type Index interface {
-	// Name returns the name of this index
+	// Name returns the path of this index
 	Name() string
 	// Add indexes the document. It uses a sub-bucket of the given bucket.
 	// It will only be indexed if the complete index matches.
@@ -42,7 +42,7 @@ type Index interface {
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
 	// it will not filter out double values
 	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
-	// BucketName returns the bucket name for this index
+	// BucketName returns the bucket path for this index
 	BucketName() []byte
 	// Sort the query so its parts align with the index parts.
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.

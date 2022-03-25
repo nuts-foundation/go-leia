@@ -32,9 +32,9 @@ var valueAsScalar = MustParseScalar("value")
 
 func TestNewIndex(t *testing.T) {
 	_, c := testCollection(t)
-	i := c.NewIndex("name")
+	i := c.NewIndex("path")
 
-	assert.Equal(t, "name", i.Name())
+	assert.Equal(t, "path", i.Name())
 	assert.Len(t, i.(*index).indexParts, 0)
 }
 
@@ -531,8 +531,8 @@ func TestIndex_Sort(t *testing.T) {
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, key, sorted[0])
-		assert.Equal(t, key2, sorted[1])
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("returns correct order when given in correct order", func(t *testing.T) {
@@ -543,8 +543,8 @@ func TestIndex_Sort(t *testing.T) {
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, key, sorted[0])
-		assert.Equal(t, key2, sorted[1])
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("does not include any keys when primary key is missing", func(t *testing.T) {
@@ -562,8 +562,8 @@ func TestIndex_Sort(t *testing.T) {
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, key3, sorted[0])
-		assert.Equal(t, key2, sorted[1])
+		assert.Equal(t, key3, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("includes additional keys when includeMissing option is given", func(t *testing.T) {
@@ -574,8 +574,8 @@ func TestIndex_Sort(t *testing.T) {
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, key, sorted[0])
-		assert.Equal(t, key3, sorted[1])
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key3, sorted[1].QueryPath())
 	})
 }
 
@@ -613,7 +613,7 @@ func TestIndex_QueryPartsOutsideIndex(t *testing.T) {
 		if !assert.Len(t, additional, 1) {
 			return
 		}
-		assert.Equal(t, key3, additional[0])
+		assert.Equal(t, key3, additional[0].QueryPath())
 	})
 }
 

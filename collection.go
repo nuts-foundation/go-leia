@@ -46,9 +46,9 @@ func documentCollectionByteRef() []byte {
 // Collection defines a logical jsonCollection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this jsonCollection. It doesn't matter if the index already exists.
-	// If you want to override an index (by name) drop it first.
+	// If you want to override an index (by path) drop it first.
 	AddIndex(index ...Index) error
-	// DropIndex by name
+	// DropIndex by path
 	DropIndex(name string) error
 	// NewIndex creates a new index from the context of this jsonCollection
 	// If multiple field indexers are given, a compound index is created.

@@ -27,13 +27,14 @@ import (
 
 func TestNewIndexPart(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
-		ip := NewFieldIndexer(NewJSONPath("path"))
+		path := NewJSONPath("path")
+		ip := NewFieldIndexer(path)
 
 		jip, ok := ip.(fieldIndexer)
 
 		if !assert.True(t, ok) {
 			return
 		}
-		assert.Equal(t, "path", jip.QueryPath())
+		assert.Equal(t, path, jip.QueryPath())
 	})
 }

@@ -67,7 +67,7 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 		_, _, i := testIndex(t)
 		queryPlan := indexScanQueryPlan{
 			queryPlanBase: queryPlanBase{
-				query: New(Eq("key", valueAsScalar)).And(Eq("not_indexed", valueAsScalar)),
+				query: New(Eq(NewJSONPath("key"), valueAsScalar)).And(Eq(NewJSONPath("not_indexed"), valueAsScalar)),
 			},
 			index: i,
 		}
@@ -85,7 +85,7 @@ func TestIndexScanQueryPlan_Execute(t *testing.T) {
 		queryPlan := indexScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query:      New(Eq("key", valueAsScalar)),
+				query:      New(Eq(NewJSONPath("path.part"), valueAsScalar)),
 			},
 			index: i,
 		}
@@ -105,7 +105,7 @@ func TestResultScanQueryPlan_Execute(t *testing.T) {
 		queryPlan := resultScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: &c,
-				query:      New(Eq("key", valueAsScalar)),
+				query:      New(Eq(NewJSONPath("key"), valueAsScalar)),
 			},
 			index: i,
 		}
@@ -156,7 +156,7 @@ func TestResultScanner(t *testing.T) {
 		_ = c.Add([]Document{exampleDoc})
 
 		err := db.View(func(tx *bbolt.Tx) error {
-			scanner := resultScanner([]QueryPart{Eq("main.nesting", valueAsScalar)}, func(_ Reference, _ []byte) error {
+			scanner := resultScanner([]QueryPart{Eq(NewJSONPath("main.nesting"), valueAsScalar)}, func(_ Reference, _ []byte) error {
 				return errors.New("failed")
 			}, &c)
 

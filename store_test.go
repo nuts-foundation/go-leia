@@ -63,7 +63,7 @@ func TestStore_Collection(t *testing.T) {
 		assert.NotNil(t, c.(*jsonCollection).refMake)
 	})
 
-	t.Run("name is set", func(t *testing.T) {
+	t.Run("path is set", func(t *testing.T) {
 		assert.NotNil(t, c.(*jsonCollection).name)
 	})
 
@@ -71,7 +71,7 @@ func TestStore_Collection(t *testing.T) {
 		_, c := testCollection(t)
 
 		assert.Len(t, c.indexList, 0)
-		c.AddIndex(c.NewIndex("test", NewFieldIndexer("path")))
+		c.AddIndex(c.NewIndex("test", NewFieldIndexer(NewJSONPath("path"))))
 
 		assert.Len(t, c.indexList, 1)
 	})

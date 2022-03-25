@@ -29,7 +29,7 @@ var ErrNoQuery = errors.New("no query given")
 
 type jsonPath string
 
-// NewJSONPath creates a JSON path query: "person.name" or "person.children.#.name"
+// NewJSONPath creates a JSON path query: "person.path" or "person.children.#.path"
 // # is used to traverse arrays
 func NewJSONPath(path string) QueryPath {
 	return jsonPath(path)

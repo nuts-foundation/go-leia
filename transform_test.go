@@ -31,17 +31,17 @@ import (
 // the test based index returns each word as a key.
 
 type testIndexPart struct {
-	name        string
+	path        string
 	transformer Transform
 	tokenizer   Tokenizer
 }
 
-func (t testIndexPart) Name() string {
-	return t.name
+func (t testIndexPart) Equals(other IRIComparable) bool {
+	return NewJSONPath(t.path).Equals(other.QueryPath())
 }
 
-func (t testIndexPart) Path() string {
-	return t.name
+func (t testIndexPart) QueryPath() QueryPath {
+	return NewJSONPath(t.path)
 }
 
 func (t testIndexPart) Tokenize(value Scalar) []Scalar {
@@ -72,7 +72,7 @@ func (t testIndexPart) Transformer() Transform {
 
 func TestIndex_Add(t *testing.T) {
 	db, c := testCollection(t)
-	i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
+	i := c.NewIndex("test", testIndexPart{path: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 	t.Run("ok - single word", func(t *testing.T) {
 		ref := []byte("01")
@@ -108,7 +108,7 @@ func TestIndex_Add(t *testing.T) {
 func TestIndex_Iterate(t *testing.T) {
 	t.Run("ok - single word", func(t *testing.T) {
 		db, c := testCollection(t)
-		i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
+		i := c.NewIndex("test", testIndexPart{path: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 		ref := []byte("01")
 		doc := []byte(`{"part": "WORD"}`)
@@ -122,7 +122,7 @@ func TestIndex_Iterate(t *testing.T) {
 			return
 		}
 
-		q := New(Eq("part", key))
+		q := New(Eq(NewJSONPath("part"), key))
 		count := 0
 
 		err = withinBucket(t, db, func(bucket *bbolt.Bucket) error {
@@ -138,7 +138,7 @@ func TestIndex_Iterate(t *testing.T) {
 
 	t.Run("ok - sentence", func(t *testing.T) {
 		db, c := testCollection(t)
-		i := c.NewIndex("test", testIndexPart{name: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
+		i := c.NewIndex("test", testIndexPart{path: "part", tokenizer: WhiteSpaceTokenizer, transformer: ToLower})
 
 		ref := []byte("01")
 		doc := []byte(`{"part": "WORD1 WORD2"}`)
@@ -152,7 +152,7 @@ func TestIndex_Iterate(t *testing.T) {
 			return
 		}
 
-		q := New(Eq("part", key2))
+		q := New(Eq(NewJSONPath("part"), key2))
 		count := 0
 
 		err = withinBucket(t, db, func(bucket *bbolt.Bucket) error {
