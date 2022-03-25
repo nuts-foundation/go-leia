@@ -28,7 +28,7 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-var valueAsScalar = ScalarMustParse("value")
+var valueAsScalar = MustParseScalar("value")
 
 func TestNewIndex(t *testing.T) {
 	_, c := testCollection(t)
@@ -311,7 +311,7 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - not found", func(t *testing.T) {
-		q := New(Eq("key", ScalarMustParse("not_found")))
+		q := New(Eq("key", MustParseScalar("not_found")))
 		found := false
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -328,8 +328,8 @@ func TestIndex_Find(t *testing.T) {
 
 	t.Run("ok - exact match", func(t *testing.T) {
 		q := New(Eq("key", valueAsScalar)).And(
-			Eq("key2", ScalarMustParse("value2"))).And(
-			Eq("key3", ScalarMustParse(1.0)))
+			Eq("key2", MustParseScalar("value2"))).And(
+			Eq("key3", MustParseScalar(1.0)))
 		count := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -345,9 +345,9 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - match through transformer", func(t *testing.T) {
-		q := New(Eq("key", ScalarMustParse("VALUE"))).And(
-			Eq("key2", ScalarMustParse("value2"))).And(
-			Eq("key3", ScalarMustParse(1.0)))
+		q := New(Eq("key", MustParseScalar("VALUE"))).And(
+			Eq("key2", MustParseScalar("value2"))).And(
+			Eq("key3", MustParseScalar(1.0)))
 		count := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -631,7 +631,7 @@ func TestIndex_Keys(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "value", keys[0].value)
+		assert.Equal(t, "value", keys[0].value())
 	})
 
 	t.Run("ok - sub sub object", func(t *testing.T) {
@@ -666,8 +666,8 @@ func TestIndex_Keys(t *testing.T) {
 			return
 		}
 
-		assert.Equal(t, "value1", keys[0].value)
-		assert.Equal(t, "value2", keys[1].value)
+		assert.Equal(t, "value1", keys[0].value())
+		assert.Equal(t, "value2", keys[1].value())
 	})
 
 	t.Run("ok - no match", func(t *testing.T) {

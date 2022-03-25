@@ -49,51 +49,70 @@ func (r Reference) ByteSize() int {
 }
 
 // Scalar represents a JSON or JSON-LD scalar (string, number, true or false)
-type Scalar struct {
-	value interface{}
+type Scalar interface {
+	// Bytes returns the byte value
+	Bytes() []byte
+	// value helps in testing
+	value() interface{}
+}
+
+type stringScalar string
+
+func (ss stringScalar) Bytes() []byte {
+	return []byte(ss)
+}
+
+func (ss stringScalar) value() interface{} {
+	return string(ss)
+}
+
+type boolScalar bool
+
+func (bs boolScalar) Bytes() []byte {
+	if bs {
+		return []byte{1}
+	}
+	return []byte{0}
+}
+
+func (bs boolScalar) value() interface{} {
+	return bool(bs)
+}
+
+type float64Scalar float64
+
+func (fs float64Scalar) Bytes() []byte {
+	var buf [8]byte
+	binary.BigEndian.PutUint64(buf[:], math.Float64bits(float64(fs)))
+	return buf[:]
+}
+
+func (fs float64Scalar) value() interface{} {
+	return float64(fs)
 }
 
 // ErrInvalidValue is returned when an invalid value is parsed
 var ErrInvalidValue = errors.New("invalid value")
 
-// ScalarParse returns a Scalar based on an interface value. It returns ErrInvalidValue for unsupported values.
-func ScalarParse(value interface{}) (Scalar, error) {
-	switch value.(type) {
+// ParseScalar returns a Scalar based on an interface value. It returns ErrInvalidValue for unsupported values.
+func ParseScalar(value interface{}) (Scalar, error) {
+	switch castValue := value.(type) {
 	case bool:
-		return Scalar{value: value}, nil
+		return boolScalar(castValue), nil
 	case string:
-		return Scalar{value: value}, nil
+		return stringScalar(castValue), nil
 	case float64:
-		return Scalar{value: value}, nil
+		return float64Scalar(castValue), nil
 	}
-	// not possible
-	return Scalar{}, ErrInvalidValue
+
+	return nil, ErrInvalidValue
 }
 
-// ScalarMustParse returns a Scalar based on an interface value. It panics when the value is not supported.
-func ScalarMustParse(value interface{}) Scalar {
-	s, err := ScalarParse(value)
+// MustParseScalar returns a Scalar based on an interface value. It panics when the value is not supported.
+func MustParseScalar(value interface{}) Scalar {
+	s, err := ParseScalar(value)
 	if err != nil {
 		panic(err)
 	}
 	return s
-}
-
-// Bytes returns the byte representation of the Scalar
-func (s Scalar) Bytes() []byte {
-	switch castData := s.value.(type) {
-	case bool:
-		if castData {
-			return []byte{1}
-		}
-		return []byte{0}
-	case string:
-		return []byte(castData)
-	case float64:
-		var buf [8]byte
-		binary.BigEndian.PutUint64(buf[:], math.Float64bits(castData))
-		return buf[:]
-	}
-
-	return []byte{}
 }

@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var testAsScalar = ScalarMustParse("test")
+var testAsScalar = MustParseScalar("test")
 
 func TestNew(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
@@ -55,7 +55,7 @@ func TestEq(t *testing.T) {
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
 
-		assert.Equal(t, "test", s.value)
+		assert.Equal(t, "test", s.value())
 	})
 
 	t.Run("ok - condition true", func(t *testing.T) {
@@ -72,7 +72,7 @@ func TestEq(t *testing.T) {
 }
 
 func TestRange(t *testing.T) {
-	qp := Range("test", ScalarMustParse("a"), ScalarMustParse("b"))
+	qp := Range("test", MustParseScalar("a"), MustParseScalar("b"))
 
 	t.Run("ok - name", func(t *testing.T) {
 		assert.Equal(t, "test", qp.Name())
@@ -81,7 +81,7 @@ func TestRange(t *testing.T) {
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
 
-		assert.Equal(t, "a", s.value)
+		assert.Equal(t, "a", s.value())
 	})
 
 	t.Run("ok - condition true begin", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestPrefix(t *testing.T) {
 	t.Run("ok - seek", func(t *testing.T) {
 		s := qp.Seek()
 
-		assert.Equal(t, "test", s.value)
+		assert.Equal(t, "test", s.value())
 	})
 
 	t.Run("ok - condition true", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestPrefix(t *testing.T) {
 	})
 
 	t.Run("ok - condition true with transform", func(t *testing.T) {
-		qp := Prefix("test", ScalarMustParse("TEST"))
+		qp := Prefix("test", MustParseScalar("TEST"))
 
 		c := qp.Condition(Key("test something"), ToLower)
 

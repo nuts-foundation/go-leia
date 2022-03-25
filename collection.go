@@ -386,9 +386,13 @@ func (c *collection) ValuesAtPath(document Document, jsonPath string) ([]Scalar,
 func valuesFromResult(result gjson.Result) ([]Scalar, error) {
 	switch result.Type {
 	case gjson.String:
-		return []Scalar{{value: result.Str}}, nil
+		return []Scalar{stringScalar(result.Str)}, nil
+	case gjson.True:
+		return []Scalar{boolScalar(true)}, nil
+	case gjson.False:
+		return []Scalar{boolScalar(false)}, nil
 	case gjson.Number:
-		return []Scalar{{value: result.Num}}, nil
+		return []Scalar{float64Scalar(result.Num)}, nil
 	case gjson.Null:
 		return []Scalar{}, nil
 	default:

@@ -153,7 +153,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value")))
+		q := New(Eq("key", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -168,7 +168,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value"))).And(Eq("non_indexed", ScalarMustParse("value")))
+		q := New(Eq("key", MustParseScalar("value"))).And(Eq("non_indexed", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -183,7 +183,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("non_indexed", ScalarMustParse("value")))
+		q := New(Eq("non_indexed", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -198,7 +198,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value"))).And(Range("non_indexed", ScalarMustParse("v"), ScalarMustParse("value1")))
+		q := New(Eq("key", MustParseScalar("value"))).And(Range("non_indexed", MustParseScalar("v"), MustParseScalar("value1")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -213,8 +213,8 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value"))).And(
-			Range("non_indexed", ScalarMustParse("value1"), ScalarMustParse("value2")))
+		q := New(Eq("key", MustParseScalar("value"))).And(
+			Range("non_indexed", MustParseScalar("value1"), MustParseScalar("value2")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -228,7 +228,7 @@ func TestCollection_Find(t *testing.T) {
 	t.Run("ok - no docs", func(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
-		q := New(Eq("key", ScalarMustParse("value")))
+		q := New(Eq("key", MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -253,7 +253,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value")))
+		q := New(Eq("key", MustParseScalar("value")))
 		ctx, cancelFn := context.WithCancel(context.Background())
 
 		cancelFn()
@@ -270,7 +270,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", ScalarMustParse("value")))
+		q := New(Eq("key", MustParseScalar("value")))
 		ctx, _ := context.WithTimeout(context.Background(), time.Nanosecond)
 
 		_, err := c.Find(ctx, q)
@@ -287,7 +287,7 @@ func TestCollection_Iterate(t *testing.T) {
 	_, c, i := testIndex(t)
 	_ = c.AddIndex(i)
 	_ = c.Add([]Document{exampleDoc})
-	q := New(Eq("key", ScalarMustParse("value")))
+	q := New(Eq("key", MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -337,7 +337,7 @@ func TestCollection_IndexIterate(t *testing.T) {
 	db, c, i := testIndex(t)
 	_ = c.AddIndex(i)
 	_ = c.Add([]Document{exampleDoc})
-	q := New(Eq("key", ScalarMustParse("value")))
+	q := New(Eq("key", MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -442,7 +442,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 		}
 
 		assert.Len(t, values, 1)
-		assert.Equal(t, 1.0, values[0].value)
+		assert.Equal(t, 1.0, values[0].value())
 	})
 
 	t.Run("ok - find a single string value", func(t *testing.T) {
@@ -453,7 +453,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 		}
 
 		assert.Len(t, values, 1)
-		assert.Equal(t, "test", values[0].value)
+		assert.Equal(t, "test", values[0].value())
 	})
 
 	t.Run("ok - find a list of values", func(t *testing.T) {
@@ -464,8 +464,8 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 		}
 
 		assert.Len(t, values, 2)
-		assert.Equal(t, "blue", values[0].value)
-		assert.Equal(t, "orange", values[1].value)
+		assert.Equal(t, "blue", values[0].value())
+		assert.Equal(t, "orange", values[1].value())
 	})
 
 	t.Run("ok - find a list of values from a sublist", func(t *testing.T) {
@@ -476,8 +476,8 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 		}
 
 		assert.Len(t, values, 2)
-		assert.Equal(t, "car", values[0].value)
-		assert.Equal(t, "bike", values[1].value)
+		assert.Equal(t, "car", values[0].value())
+		assert.Equal(t, "bike", values[1].value())
 	})
 
 	t.Run("ok - values at an unknown path", func(t *testing.T) {

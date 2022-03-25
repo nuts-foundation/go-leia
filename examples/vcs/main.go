@@ -64,8 +64,8 @@ func main() {
 	genJson(issuers, subjects, total, c)
 	fmt.Printf("added %d docs\n", total*subjects*issuers)
 
-	query := leia.New(leia.Eq("subject", leia.ScalarMustParse("did:nuts:subject_8"))).
-		And(leia.Eq("resource", leia.ScalarMustParse("/resource/15/8_9")))
+	query := leia.New(leia.Eq("subject", leia.MustParseScalar("did:nuts:subject_8"))).
+		And(leia.Eq("resource", leia.MustParseScalar("/resource/15/8_9")))
 
 	j, err := c.Find(context.Background(), query)
 	if err != nil {

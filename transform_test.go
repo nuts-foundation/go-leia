@@ -48,11 +48,11 @@ func (t testIndexPart) Tokenize(value Scalar) []Scalar {
 	if t.tokenizer == nil {
 		return []Scalar{value}
 	}
-	if s, ok := value.value.(string); ok {
-		tokens := t.tokenizer(s)
+	if s, ok := value.(stringScalar); ok {
+		tokens := t.tokenizer(string(s))
 		result := make([]Scalar, len(tokens))
 		for i, t := range tokens {
-			result[i] = ScalarMustParse(t)
+			result[i] = stringScalar(t)
 		}
 		return result
 	}
@@ -112,7 +112,7 @@ func TestIndex_Iterate(t *testing.T) {
 
 		ref := []byte("01")
 		doc := []byte(`{"part": "WORD"}`)
-		key := ScalarMustParse("word")
+		key := MustParseScalar("word")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
 			return i.Add(bucket, ref, doc)
@@ -142,7 +142,7 @@ func TestIndex_Iterate(t *testing.T) {
 
 		ref := []byte("01")
 		doc := []byte(`{"part": "WORD1 WORD2"}`)
-		key2 := ScalarMustParse("word2")
+		key2 := MustParseScalar("word2")
 
 		err := withinBucket(t, db, func(bucket *bbolt.Bucket) error {
 			return i.Add(bucket, ref, doc)

@@ -30,14 +30,11 @@ type Transform func(Scalar) Scalar
 // ToLower transforms all Unicode letters mapped to their lower case.
 // It only transforms objects that conform to the Stringer interface.
 func ToLower(scalar Scalar) Scalar {
-	value := scalar.value
-
-	switch typedValue := value.(type) {
-	case string:
-		return ScalarMustParse(strings.ToLower(typedValue))
-	default:
-		return scalar
+	if s, ok := scalar.(stringScalar); ok {
+		return stringScalar(strings.ToLower(string(s)))
 	}
+
+	return scalar
 }
 
 // Tokenizer is a function definition that transforms a text into tokens

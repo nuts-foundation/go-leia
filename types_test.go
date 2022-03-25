@@ -77,45 +77,45 @@ func TestToBytes(t *testing.T) {
 	})
 }
 
-func TestScalarParse(t *testing.T) {
+func TestParseScalar(t *testing.T) {
 	t.Run("ok - string", func(t *testing.T) {
-		s, err := ScalarParse("string")
+		s, err := ParseScalar("string")
 
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, "string", s.value)
+		assert.Equal(t, "string", s.value())
 	})
 
 	t.Run("ok - number", func(t *testing.T) {
-		s, err := ScalarParse(1.0)
+		s, err := ParseScalar(1.0)
 
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, 1.0, s.value)
+		assert.Equal(t, 1.0, s.value())
 	})
 
 	t.Run("ok - true", func(t *testing.T) {
-		s, err := ScalarParse(true)
+		s, err := ParseScalar(true)
 
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, true, s.value)
+		assert.Equal(t, true, s.value())
 	})
 
 	t.Run("ok - false", func(t *testing.T) {
-		s, err := ScalarParse(false)
+		s, err := ParseScalar(false)
 
 		if !assert.NoError(t, err) {
 			return
 		}
-		assert.Equal(t, false, s.value)
+		assert.Equal(t, false, s.value())
 	})
 
 	t.Run("err - unsupported", func(t *testing.T) {
-		_, err := ScalarParse(struct{}{})
+		_, err := ParseScalar(struct{}{})
 
 		assert.Equal(t, ErrInvalidValue, err)
 	})
@@ -123,32 +123,38 @@ func TestScalarParse(t *testing.T) {
 
 func TestScalar_Bytes(t *testing.T) {
 	t.Run("ok - string", func(t *testing.T) {
-		s := Scalar{value: "string"}
+		s := stringScalar("string")
 
 		assert.Equal(t, []byte("string"), s.Bytes())
 	})
 
 	t.Run("ok - number", func(t *testing.T) {
-		s := Scalar{value: 1.0}
+		s := float64Scalar(1.0)
 
 		assert.Equal(t, []byte{0x3f, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
 	})
 
+	t.Run("ok - negative number", func(t *testing.T) {
+		s := float64Scalar(-1.0)
+
+		assert.Equal(t, []byte{0xbf, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
+	})
+
+	t.Run("ok - 0", func(t *testing.T) {
+		s := float64Scalar(0.0)
+
+		assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
+	})
+
 	t.Run("ok - true", func(t *testing.T) {
-		s := Scalar{value: true}
+		s := boolScalar(true)
 
 		assert.Equal(t, []byte{0x01}, s.Bytes())
 	})
 
 	t.Run("ok - false", func(t *testing.T) {
-		s := Scalar{value: false}
+		s := boolScalar(false)
 
 		assert.Equal(t, []byte{0x0}, s.Bytes())
-	})
-
-	t.Run("ok - unknown", func(t *testing.T) {
-		s := Scalar{value: struct{}{}}
-
-		assert.Equal(t, []byte{}, s.Bytes())
 	})
 }
