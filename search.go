@@ -55,6 +55,7 @@ type termPath struct {
 	terms []string
 }
 
+// NewTermPath creates a QUeryPath of JSON-LD terms
 func NewTermPath(terms ...string) QueryPath {
 	return termPath{terms: terms}
 }

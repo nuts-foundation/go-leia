@@ -49,7 +49,7 @@ func TestStore_Collection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
 	s, _ := NewStore(f, WithoutSync())
 
-	c := s.JsonCollection("test")
+	c := s.JSONCollection("test")
 
 	if !assert.NotNil(t, c) {
 		return

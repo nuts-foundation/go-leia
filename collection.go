@@ -372,6 +372,8 @@ func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
 // valueCollector is responsible for going through the document and finding the Scalars that match the Query
 type valueCollector func(collection *collection, document Document, queryPath QueryPath) ([]Scalar, error)
 
+// JSONPathValueCollector collects values at a given JSON path expression. Objects are delimited by a dot and lists use an extra # in the expression:
+// object.list.#.key
 func JSONPathValueCollector(_ *collection, document Document, queryPath QueryPath) ([]Scalar, error) {
 	jsonPath, ok := queryPath.(jsonPath)
 	if !ok {
@@ -386,6 +388,7 @@ func JSONPathValueCollector(_ *collection, document Document, queryPath QueryPat
 	return valuesFromResult(result)
 }
 
+// JSONLDValueCollector collects values given a list of IRIs that represent the nesting of the objects.
 func JSONLDValueCollector(collection *collection, document Document, queryPath QueryPath) ([]Scalar, error) {
 	termPath, ok := queryPath.(termPath)
 	if !ok {

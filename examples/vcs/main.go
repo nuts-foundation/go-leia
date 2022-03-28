@@ -46,7 +46,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	c := s.JsonCollection("vcs")
+	c := s.JSONCollection("vcs")
 	var credentialIndex = c.NewIndex("subject.resource",
 		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.id")),
 		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.resources.#.path"), leia.TransformerOption(leia.ToLower)),

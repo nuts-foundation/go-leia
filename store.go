@@ -29,12 +29,12 @@ import (
 
 // Store is the main interface for storing/finding documents
 type Store interface {
-	// JsonCollection creates or returns a jsonCollection.
+	// JSONCollection creates or returns a JSON Collection.
 	// On the db level it's a bucket for the documents and 1 bucket per index.
-	JsonCollection(name string) Collection
-	// JsonLDCollection creates or returns a JsonLDCollection.
+	JSONCollection(name string) Collection
+	// JSONLDCollection creates or returns a JSON-LD Collection.
 	// On the db level it's a bucket for the documents and 1 bucket per index.
-	JsonLDCollection(name string) Collection
+	JSONLDCollection(name string) Collection
 	// Close the bbolt DB
 	Close() error
 }
@@ -49,6 +49,7 @@ type store struct {
 	options bbolt.Options
 }
 
+// StoreOption is the function type for the Store Options
 type StoreOption func(store *store)
 
 // WithoutSync is a store option which signals the underlying bbolt db to skip syncing with disk
@@ -95,7 +96,7 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 	return st, nil
 }
 
-func (s *store) JsonCollection(name string) Collection {
+func (s *store) JSONCollection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
 		c = &collection{
@@ -110,7 +111,7 @@ func (s *store) JsonCollection(name string) Collection {
 	return c
 }
 
-func (s *store) JsonLDCollection(name string) Collection {
+func (s *store) JSONLDCollection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
 		c = &collection{
