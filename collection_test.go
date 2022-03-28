@@ -575,6 +575,22 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 }
 
+func TestJSONPathValueCollector(t *testing.T) {
+	t.Run("error - invalid QueryPath type", func(t *testing.T) {
+		_, err := JSONPathValueCollector(nil, Document{}, NewTermPath())
+
+		assert.Equal(t, ErrInvalidQuery, err)
+	})
+}
+
+func TestJSONLDValueCollector(t *testing.T) {
+	t.Run("error - invalid QueryPath type", func(t *testing.T) {
+		_, err := JSONLDValueCollector(nil, Document{}, NewJSONPath("."))
+
+		assert.Equal(t, ErrInvalidQuery, err)
+	})
+}
+
 func testIndex(t *testing.T) (*bbolt.DB, *collection, Index) {
 	db := testDB(t)
 	c := testCollectionWithDB(db)

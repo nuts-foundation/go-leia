@@ -137,3 +137,13 @@ func TestPrefix(t *testing.T) {
 		assert.False(t, c)
 	})
 }
+
+func TestTermPath_Equals(t *testing.T) {
+	t.Run("false - for other type of QueryPath", func(t *testing.T) {
+		assert.False(t, NewJSONPath(".").Equals(NewTermPath()))
+	})
+}
+
+func TestJSONPath_Equals(t *testing.T) {
+	assert.False(t, NewTermPath().Equals(NewJSONPath(".")))
+}
