@@ -542,6 +542,37 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 		assert.Len(t, values, 1)
 		assert.Equal(t, "06-12345678", values[0].value())
 	})
+
+	t.Run("ok - find a single id value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/url"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "http://www.janedoe.com", values[0].value())
+	})
+
+	t.Run("ok - empty for nothing", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath())
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 0)
+	})
+
+	t.Run("ok - empty for incomplete path", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/children"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 0)
+	})
 }
 
 func testIndex(t *testing.T) (*bbolt.DB, *collection, Index) {

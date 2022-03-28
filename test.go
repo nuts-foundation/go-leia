@@ -81,7 +81,7 @@ var jsonLDExample = `
         
         "name": {"@id": "schema:name"},
         "telephone": {"@id": "schema:telephone", "@container": "@list"},
-        "url": {"@id": "schema:url"},
+        "url": {"@id": "schema:url", "@type": "@id"},
         "children": {"@id": "schema:children", "@type": "@id"}
       }
     }
