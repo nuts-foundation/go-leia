@@ -93,12 +93,12 @@ func defaultReferenceCreator(doc Document) Reference {
 }
 
 type collection struct {
-	name              string
-	db                *bbolt.DB
-	indexList         []Index
-	refMake           ReferenceFunc
-	documentProcessor *ld.JsonLdProcessor
-	valueCollector    valueCollector
+	name           string
+	db             *bbolt.DB
+	indexList      []Index
+	refMake        ReferenceFunc
+	documentLoader ld.DocumentLoader
+	valueCollector valueCollector
 }
 
 func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
@@ -404,7 +404,9 @@ func JSONLDValueCollector(collection *collection, document Document, queryPath Q
 		return nil, err
 	}
 
-	expanded, err := collection.documentProcessor.Expand(input, nil)
+	options := ld.NewJsonLdOptions("")
+	options.DocumentLoader = collection.documentLoader
+	expanded, err := ld.NewJsonLdProcessor().Expand(input, options)
 	if err != nil {
 		return nil, err
 	}

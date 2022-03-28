@@ -41,10 +41,9 @@ type Store interface {
 
 // Store holds a reference to the bbolt data file and all collections.
 type store struct {
-	db                *bbolt.DB
-	collections       map[string]Collection
-	documentLoader    ld.DocumentLoader
-	documentProcessor *ld.JsonLdProcessor
+	db             *bbolt.DB
+	collections    map[string]Collection
+	documentLoader ld.DocumentLoader
 	// options is used during configuration
 	options bbolt.Options
 }
@@ -77,10 +76,9 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 
 	// store with defaults
 	st := &store{
-		options:           *bbolt.DefaultOptions,
-		collections:       map[string]Collection{},
-		documentLoader:    ld.NewDefaultDocumentLoader(nil),
-		documentProcessor: ld.NewJsonLdProcessor(),
+		options:        *bbolt.DefaultOptions,
+		collections:    map[string]Collection{},
+		documentLoader: ld.NewDefaultDocumentLoader(nil),
 	}
 
 	// apply options
@@ -115,11 +113,11 @@ func (s *store) JSONLDCollection(name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
 		c = &collection{
-			name:              name,
-			db:                s.db,
-			refMake:           defaultReferenceCreator,
-			documentProcessor: s.documentProcessor,
-			valueCollector:    JSONLDValueCollector,
+			name:           name,
+			db:             s.db,
+			refMake:        defaultReferenceCreator,
+			documentLoader: s.documentLoader,
+			valueCollector: JSONLDValueCollector,
 		}
 		s.collections[name] = c
 	}

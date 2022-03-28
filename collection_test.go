@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
 )
@@ -506,8 +505,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	document := Document(jsonLDExample)
 
 	c := collection{
-		documentProcessor: ld.NewJsonLdProcessor(),
-		valueCollector:    JSONLDValueCollector,
+		valueCollector: JSONLDValueCollector,
 	}
 
 	t.Run("ok - find a single string value", func(t *testing.T) {

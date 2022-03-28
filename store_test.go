@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -45,7 +46,7 @@ func TestNewStore(t *testing.T) {
 	})
 }
 
-func TestStore_Collection(t *testing.T) {
+func TestStore_JSONCollection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
 	s, _ := NewStore(f, WithoutSync())
 
@@ -55,24 +56,47 @@ func TestStore_Collection(t *testing.T) {
 		return
 	}
 
-	t.Run("db is set", func(t *testing.T) {
+	assert.NotNil(t, c.(*collection).db)
+	assert.NotNil(t, c.(*collection).refMake)
+	assert.NotNil(t, c.(*collection).name)
+	assert.NotNil(t, c.(*collection).valueCollector)
+}
+
+func TestStore_JSONLDCollection(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, _ := NewStore(f, WithoutSync())
+
+		c := s.JSONLDCollection("test")
+
+		if !assert.NotNil(t, c) {
+			return
+		}
+
 		assert.NotNil(t, c.(*collection).db)
-	})
-
-	t.Run("refMake is set", func(t *testing.T) {
 		assert.NotNil(t, c.(*collection).refMake)
-	})
-
-	t.Run("path is set", func(t *testing.T) {
 		assert.NotNil(t, c.(*collection).name)
+		assert.NotNil(t, c.(*collection).documentLoader)
+		assert.NotNil(t, c.(*collection).valueCollector)
 	})
 
-	t.Run("collections are stored in instance", func(t *testing.T) {
-		_, c := testCollection(t)
+	t.Run("custom documentLoader", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, _ := NewStore(f, WithoutSync(), WithDocumentLoader(testDocumentLoader{}))
 
-		assert.Len(t, c.indexList, 0)
-		c.AddIndex(c.NewIndex("test", NewFieldIndexer(NewJSONPath("path"))))
+		c := s.JSONLDCollection("test")
 
-		assert.Len(t, c.indexList, 1)
+		if !assert.NotNil(t, c) {
+			return
+		}
+
+		_, ok := c.(*collection).documentLoader.(testDocumentLoader)
+		assert.True(t, ok)
 	})
+}
+
+type testDocumentLoader struct{}
+
+func (t testDocumentLoader) LoadDocument(u string) (*ld.RemoteDocument, error) {
+	return nil, nil
 }
