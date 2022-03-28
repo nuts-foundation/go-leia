@@ -68,7 +68,7 @@ func TestEq(t *testing.T) {
 	})
 }
 
-func TestRange(t *testing.T) {
+func TestRange_Condition(t *testing.T) {
 	qp := Range(testJsonPath, MustParseScalar("a"), MustParseScalar("b"))
 
 	t.Run("ok - seek", func(t *testing.T) {
@@ -100,9 +100,17 @@ func TestRange(t *testing.T) {
 
 		assert.False(t, c)
 	})
+
+	t.Run("ok - with transform", func(t *testing.T) {
+		qp := Range(testJsonPath, MustParseScalar("A"), MustParseScalar("B"))
+
+		c := qp.Condition(Key("a"), ToLower)
+
+		assert.True(t, c)
+	})
 }
 
-func TestPrefix(t *testing.T) {
+func TestPrefixPart_Condition(t *testing.T) {
 	qp := Prefix(testJsonPath, testAsScalar)
 
 	t.Run("ok - seek", func(t *testing.T) {
@@ -138,9 +146,45 @@ func TestPrefix(t *testing.T) {
 	})
 }
 
+func TestPrefixPart_Equals(t *testing.T) {
+	qp := Prefix(testJsonPath, testAsScalar)
+
+	t.Run("true", func(t *testing.T) {
+		assert.True(t, qp.Equals(qp))
+	})
+
+	t.Run("false", func(t *testing.T) {
+		assert.False(t, qp.Equals(Prefix(NewJSONPath("a"), MustParseScalar("a"))))
+	})
+}
+
+func TestRangePart_Equals(t *testing.T) {
+	qp := Range(testJsonPath, MustParseScalar("a"), MustParseScalar("b"))
+
+	t.Run("true", func(t *testing.T) {
+		assert.True(t, qp.Equals(qp))
+	})
+
+	t.Run("false", func(t *testing.T) {
+		assert.False(t, qp.Equals(Range(NewJSONPath("a"), MustParseScalar("a"), MustParseScalar("b"))))
+	})
+}
+
 func TestTermPath_Equals(t *testing.T) {
 	t.Run("false - for other type of QueryPath", func(t *testing.T) {
 		assert.False(t, NewJSONPath(".").Equals(NewTermPath()))
+	})
+
+	t.Run("false - different number of terms", func(t *testing.T) {
+		assert.False(t, NewTermPath("1").Equals(NewTermPath("1", "2")))
+	})
+
+	t.Run("false - different terms", func(t *testing.T) {
+		assert.False(t, NewTermPath("1").Equals(NewTermPath("a")))
+	})
+
+	t.Run("true", func(t *testing.T) {
+		assert.True(t, NewTermPath("1").Equals(NewTermPath("1")))
 	})
 }
 
