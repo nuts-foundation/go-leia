@@ -435,19 +435,7 @@ func valuesFromMapAtPath(expanded map[string]interface{}, termPath termPath) []S
 		}
 		if list, ok := expanded["@list"]; ok {
 			castList := list.([]interface{})
-			scalars := make([]Scalar, len(castList))
-			for i, s := range castList {
-				scalars[i] = MustParseScalar(s)
-			}
-			return scalars
-		}
-		if set, ok := expanded["@set"]; ok {
-			castSet := set.([]interface{})
-			scalars := make([]Scalar, len(castSet))
-			for i, s := range castSet {
-				scalars[i] = MustParseScalar(s)
-			}
-			return scalars
+			return valuesFromSliceAtPath(castList, termPath)
 		}
 	}
 

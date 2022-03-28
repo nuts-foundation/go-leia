@@ -80,7 +80,7 @@ var jsonLDExample = `
         "type": "@type",
         
         "name": {"@id": "schema:name"},
-        "telephone": {"@id": "schema:telephone"},
+        "telephone": {"@id": "schema:telephone", "@container": "@list"},
         "url": {"@id": "schema:url"},
         "children": {"@id": "schema:children", "@type": "@id"}
       }
@@ -89,6 +89,7 @@ var jsonLDExample = `
   "@type": "Person",
   "name": "Jane Doe",
   "url": "http://www.janedoe.com",
+  "telephone": ["06-12345678"],
   "children": [{
     "@type": "Person",
     "name": "John Doe",

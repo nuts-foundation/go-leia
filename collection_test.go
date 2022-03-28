@@ -531,6 +531,17 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 		assert.Len(t, values, 1)
 		assert.Equal(t, "John Doe", values[0].value())
 	})
+
+	t.Run("ok - find a single list value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/telephone"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "06-12345678", values[0].value())
+	})
 }
 
 func testIndex(t *testing.T) (*bbolt.DB, *collection, Index) {
