@@ -44,7 +44,7 @@ type QueryPath interface {
 	Equals(other QueryPath) bool
 }
 
-// iriPath represents a nested term structure (or graph path) using the fully qualified IRIs
+// iriPath represents a nested structure (or graph path) using the fully qualified IRIs
 type iriPath struct {
 	// iris represent the nested structure from highest (index 0) to lowest
 	iris []string
@@ -60,7 +60,7 @@ func (tp iriPath) IsEmpty() bool {
 	return len(tp.iris) == 0
 }
 
-// Head returns the first term of the list or ""
+// Head returns the first IRI of the list or ""
 func (tp iriPath) Head() string {
 	if len(tp.iris) == 0 {
 		return ""
@@ -87,8 +87,8 @@ func (tp iriPath) Equals(other QueryPath) bool {
 		return false
 	}
 
-	for i, term := range tp.iris {
-		if term != otherIRIPath.iris[i] {
+	for i, iri := range tp.iris {
+		if iri != otherIRIPath.iris[i] {
 			return false
 		}
 	}
