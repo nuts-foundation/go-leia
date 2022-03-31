@@ -76,9 +76,9 @@ func main() {
 	}
 	c := s.JSONLDCollection("json")
 	var compoundIndex = c.NewIndex("compound",
-		leia.NewFieldIndexer(leia.NewTermPath("http://example.com/name"), leia.TransformerOption(leia.ToLower)),
-		leia.NewFieldIndexer(leia.NewTermPath("http://example.com/url")),
-		leia.NewFieldIndexer(leia.NewTermPath("http://example.com/children", "http://example.com/name")),
+		leia.NewFieldIndexer(leia.NewIRIPath("http://example.com/name"), leia.TransformerOption(leia.ToLower)),
+		leia.NewFieldIndexer(leia.NewIRIPath("http://example.com/url")),
+		leia.NewFieldIndexer(leia.NewIRIPath("http://example.com/children", "http://example.com/name")),
 	)
 	err = c.AddIndex(compoundIndex)
 	if err != nil {
@@ -104,10 +104,10 @@ func main() {
 
 	fmt.Println("added docs")
 
-	query := leia.New(leia.Eq(leia.NewTermPath("http://example.com/name"), leia.MustParseScalar("name3"))).
-		And(leia.Eq(leia.NewTermPath("http://example.com/url"), leia.MustParseScalar("http://www.url3.com"))).
-		And(leia.Eq(leia.NewTermPath("http://example.com/children", "http://example.com/name"), leia.MustParseScalar("child3"))).
-		And(leia.Eq(leia.NewTermPath("http://example.com/children", "http://example.com/url"), leia.MustParseScalar("http://www.url3.org")))
+	query := leia.New(leia.Eq(leia.NewIRIPath("http://example.com/name"), leia.MustParseScalar("name3"))).
+		And(leia.Eq(leia.NewIRIPath("http://example.com/url"), leia.MustParseScalar("http://www.url3.com"))).
+		And(leia.Eq(leia.NewIRIPath("http://example.com/children", "http://example.com/name"), leia.MustParseScalar("child3"))).
+		And(leia.Eq(leia.NewIRIPath("http://example.com/children", "http://example.com/url"), leia.MustParseScalar("http://www.url3.org")))
 
 	j, err := c.Find(context.Background(), query)
 	if err != nil {

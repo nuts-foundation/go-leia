@@ -36,7 +36,7 @@ type testIndexPart struct {
 	tokenizer   Tokenizer
 }
 
-func (t testIndexPart) Equals(other IRIComparable) bool {
+func (t testIndexPart) Equals(other QueryPathComparable) bool {
 	return NewJSONPath(t.path).Equals(other.QueryPath())
 }
 

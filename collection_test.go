@@ -509,7 +509,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	}
 
 	t.Run("ok - find a single string value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/name"))
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/name"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -520,7 +520,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - find a single nested string value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/children", "http://example.com/name"))
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children", "http://example.com/name"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -531,7 +531,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - find a single list value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/telephone"))
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/telephone"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -542,7 +542,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - find a single id value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/url"))
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/url"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -553,7 +553,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - empty for nothing", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath())
+		values, err := c.ValuesAtPath(document, NewIRIPath())
 
 		if !assert.NoError(t, err) {
 			return
@@ -563,7 +563,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - empty for incomplete path", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewTermPath("http://example.com/children"))
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -575,7 +575,7 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 
 func TestJSONPathValueCollector(t *testing.T) {
 	t.Run("error - invalid QueryPath type", func(t *testing.T) {
-		_, err := JSONPathValueCollector(nil, Document{}, NewTermPath())
+		_, err := JSONPathValueCollector(nil, Document{}, NewIRIPath())
 
 		assert.Equal(t, ErrInvalidQuery, err)
 	})

@@ -172,22 +172,22 @@ func TestRangePart_Equals(t *testing.T) {
 
 func TestTermPath_Equals(t *testing.T) {
 	t.Run("false - for other type of QueryPath", func(t *testing.T) {
-		assert.False(t, NewJSONPath(".").Equals(NewTermPath()))
+		assert.False(t, NewJSONPath(".").Equals(NewIRIPath()))
 	})
 
 	t.Run("false - different number of terms", func(t *testing.T) {
-		assert.False(t, NewTermPath("1").Equals(NewTermPath("1", "2")))
+		assert.False(t, NewIRIPath("1").Equals(NewIRIPath("1", "2")))
 	})
 
 	t.Run("false - different terms", func(t *testing.T) {
-		assert.False(t, NewTermPath("1").Equals(NewTermPath("a")))
+		assert.False(t, NewIRIPath("1").Equals(NewIRIPath("a")))
 	})
 
 	t.Run("true", func(t *testing.T) {
-		assert.True(t, NewTermPath("1").Equals(NewTermPath("1")))
+		assert.True(t, NewIRIPath("1").Equals(NewIRIPath("1")))
 	})
 }
 
 func TestJSONPath_Equals(t *testing.T) {
-	assert.False(t, NewTermPath().Equals(NewJSONPath(".")))
+	assert.False(t, NewIRIPath().Equals(NewJSONPath(".")))
 }

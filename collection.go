@@ -390,12 +390,12 @@ func JSONPathValueCollector(_ *collection, document Document, queryPath QueryPat
 
 // JSONLDValueCollector collects values given a list of IRIs that represent the nesting of the objects.
 func JSONLDValueCollector(collection *collection, document Document, queryPath QueryPath) ([]Scalar, error) {
-	termPath, ok := queryPath.(termPath)
+	iriPath, ok := queryPath.(iriPath)
 	if !ok {
 		return nil, ErrInvalidQuery
 	}
 
-	if len(termPath.terms) == 0 {
+	if len(iriPath.iris) == 0 {
 		return []Scalar{}, nil
 	}
 
@@ -411,10 +411,10 @@ func JSONLDValueCollector(collection *collection, document Document, queryPath Q
 		return nil, err
 	}
 
-	return valuesFromSliceAtPath(expanded, termPath), nil
+	return valuesFromSliceAtPath(expanded, iriPath), nil
 }
 
-func valuesFromSliceAtPath(expanded []interface{}, termPath termPath) []Scalar {
+func valuesFromSliceAtPath(expanded []interface{}, termPath iriPath) []Scalar {
 	result := make([]Scalar, 0)
 
 	for _, sub := range expanded {
@@ -429,7 +429,7 @@ func valuesFromSliceAtPath(expanded []interface{}, termPath termPath) []Scalar {
 	return result
 }
 
-func valuesFromMapAtPath(expanded map[string]interface{}, termPath termPath) []Scalar {
+func valuesFromMapAtPath(expanded map[string]interface{}, termPath iriPath) []Scalar {
 	// JSON-LD in expanded form either has @value, @id, @list or @set
 	if termPath.IsEmpty() {
 		if value, ok := expanded["@value"]; ok {

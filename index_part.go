@@ -38,10 +38,10 @@ func TokenizerOption(tokenizer Tokenizer) IndexOption {
 	}
 }
 
-// IRIComparable defines if two structs can be compared on IRI terms.
-type IRIComparable interface {
-	// Equals returns true if the two IRIComparable have the same termPath (same IRI's in same order).
-	Equals(other IRIComparable) bool
+// QueryPathComparable defines if two structs can be compared on query path.
+type QueryPathComparable interface {
+	// Equals returns true if the two QueryPathComparable have the same search path.
+	Equals(other QueryPathComparable) bool
 	// QueryPath returns the QueryPath
 	QueryPath() QueryPath
 }
@@ -49,7 +49,7 @@ type IRIComparable interface {
 // FieldIndexer is the public interface that defines functions for a field index instruction.
 // A FieldIndexer is used when a document is indexed.
 type FieldIndexer interface {
-	IRIComparable
+	QueryPathComparable
 	// Tokenize may split up Keys and search terms. For example split a sentence into words.
 	Tokenize(value Scalar) []Scalar
 	// Transform is a function that alters the value to be indexed as well as any search criteria.
@@ -74,7 +74,7 @@ type fieldIndexer struct {
 	tokenizer   Tokenizer
 }
 
-func (j fieldIndexer) Equals(other IRIComparable) bool {
+func (j fieldIndexer) Equals(other QueryPathComparable) bool {
 	return j.queryPath.Equals(other.QueryPath())
 }
 

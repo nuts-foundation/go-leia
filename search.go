@@ -44,51 +44,51 @@ type QueryPath interface {
 	Equals(other QueryPath) bool
 }
 
-// termPath represents a nested term structure (or graph path) using the fully qualified IRIs
-type termPath struct {
-	// terms represent the nested structure from highest (index 0) to lowest nesting
-	terms []string
+// iriPath represents a nested term structure (or graph path) using the fully qualified IRIs
+type iriPath struct {
+	// iris represent the nested structure from highest (index 0) to lowest
+	iris []string
 }
 
-// NewTermPath creates a QUeryPath of JSON-LD terms
-func NewTermPath(terms ...string) QueryPath {
-	return termPath{terms: terms}
+// NewIRIPath creates a QueryPath of JSON-LD terms
+func NewIRIPath(IRIs ...string) QueryPath {
+	return iriPath{iris: IRIs}
 }
 
 // IsEmpty returns true of no terms are in the list
-func (tp termPath) IsEmpty() bool {
-	return len(tp.terms) == 0
+func (tp iriPath) IsEmpty() bool {
+	return len(tp.iris) == 0
 }
 
 // Head returns the first term of the list or ""
-func (tp termPath) Head() string {
-	if len(tp.terms) == 0 {
+func (tp iriPath) Head() string {
+	if len(tp.iris) == 0 {
 		return ""
 	}
-	return tp.terms[0]
+	return tp.iris[0]
 }
 
 // Tail returns the last terms of the list or an empty TermPath
-func (tp termPath) Tail() termPath {
-	if len(tp.terms) <= 1 {
-		return termPath{}
+func (tp iriPath) Tail() iriPath {
+	if len(tp.iris) <= 1 {
+		return iriPath{}
 	}
-	return termPath{terms: tp.terms[1:]}
+	return iriPath{iris: tp.iris[1:]}
 }
 
 // Equals returns true if two TermPaths have the exact same Terms in the exact same order
-func (tp termPath) Equals(other QueryPath) bool {
-	otherTermPath, ok := other.(termPath)
+func (tp iriPath) Equals(other QueryPath) bool {
+	otherIRIPath, ok := other.(iriPath)
 	if !ok {
 		return false
 	}
 
-	if len(tp.terms) != len(otherTermPath.terms) {
+	if len(tp.iris) != len(otherIRIPath.iris) {
 		return false
 	}
 
-	for i, term := range tp.terms {
-		if term != otherTermPath.terms[i] {
+	for i, term := range tp.iris {
+		if term != otherIRIPath.iris[i] {
 			return false
 		}
 	}
@@ -96,7 +96,7 @@ func (tp termPath) Equals(other QueryPath) bool {
 }
 
 type QueryPart interface {
-	IRIComparable
+	QueryPathComparable
 	// Seek returns the key for cursor.Seek
 	Seek() Scalar
 	// Condition returns true if given key falls within this condition.
@@ -152,7 +152,7 @@ type eqPart struct {
 	value     Scalar
 }
 
-func (e eqPart) Equals(other IRIComparable) bool {
+func (e eqPart) Equals(other QueryPathComparable) bool {
 	return e.queryPath.Equals(other.QueryPath())
 }
 
@@ -179,7 +179,7 @@ type rangePart struct {
 	end       Scalar
 }
 
-func (r rangePart) Equals(other IRIComparable) bool {
+func (r rangePart) Equals(other QueryPathComparable) bool {
 	return r.queryPath.Equals(other.QueryPath())
 }
 
@@ -212,7 +212,7 @@ type prefixPart struct {
 	value     Scalar
 }
 
-func (p prefixPart) Equals(other IRIComparable) bool {
+func (p prefixPart) Equals(other QueryPathComparable) bool {
 	return p.queryPath.Equals(other.QueryPath())
 }
 
