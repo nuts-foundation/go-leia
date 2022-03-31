@@ -36,12 +36,7 @@ func NewJSONPath(path string) QueryPath {
 }
 
 func (q jsonPath) Equals(other QueryPath) bool {
-	otherJSONPath, ok := other.(jsonPath)
-	if !ok {
-		return false
-	}
-
-	return q == otherJSONPath
+	return q == other
 }
 
 // QueryPath is the interface for the query path given in queries

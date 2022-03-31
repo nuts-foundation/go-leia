@@ -38,30 +38,30 @@ var ErrNoIndex = errors.New("no index found")
 // The key will be the document Reference (hash) and the value will be the raw document bytes
 type DocumentWalker func(key Reference, value []byte) error
 
-// documentCollection is the bucket that stores all the documents for a jsonCollection
+// documentCollection is the bucket that stores all the documents for a collection
 const documentCollection = "_documents"
 
 func documentCollectionByteRef() []byte {
 	return []byte(documentCollection)
 }
 
-// Collection defines a logical jsonCollection of documents and indices within a store.
+// Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
-	// AddIndex to this jsonCollection. It doesn't matter if the index already exists.
+	// AddIndex to this collection. It doesn't matter if the index already exists.
 	// If you want to override an index (by path) drop it first.
 	AddIndex(index ...Index) error
 	// DropIndex by path
 	DropIndex(name string) error
-	// NewIndex creates a new index from the context of this jsonCollection
+	// NewIndex creates a new index from the context of this collection
 	// If multiple field indexers are given, a compound index is created.
 	NewIndex(name string, parts ...FieldIndexer) Index
-	// Add a set of documents to this jsonCollection
+	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
 	// Get returns the data for the given key or nil if not found
 	Get(ref Reference) (Document, error)
 	// Delete a document
 	Delete(doc Document) error
-	// Find queries the jsonCollection for documents
+	// Find queries the collection for documents
 	// returns ErrNoIndex when no suitable index can be found
 	// returns context errors when the context has been cancelled or deadline has exceeded.
 	// passing ctx prevents adding too many records to the result set.
