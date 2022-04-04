@@ -59,38 +59,38 @@ type Scalar interface {
 	value() interface{}
 }
 
-type stringScalar string
+type StringScalar string
 
-func (ss stringScalar) Bytes() []byte {
+func (ss StringScalar) Bytes() []byte {
 	return []byte(ss)
 }
 
-func (ss stringScalar) value() interface{} {
+func (ss StringScalar) value() interface{} {
 	return string(ss)
 }
 
-type boolScalar bool
+type BoolScalar bool
 
-func (bs boolScalar) Bytes() []byte {
+func (bs BoolScalar) Bytes() []byte {
 	if bs {
 		return []byte{1}
 	}
 	return []byte{0}
 }
 
-func (bs boolScalar) value() interface{} {
+func (bs BoolScalar) value() interface{} {
 	return bool(bs)
 }
 
-type float64Scalar float64
+type Float64Scalar float64
 
-func (fs float64Scalar) Bytes() []byte {
+func (fs Float64Scalar) Bytes() []byte {
 	var buf [8]byte
 	binary.BigEndian.PutUint64(buf[:], math.Float64bits(float64(fs)))
 	return buf[:]
 }
 
-func (fs float64Scalar) value() interface{} {
+func (fs Float64Scalar) value() interface{} {
 	return float64(fs)
 }
 
@@ -101,11 +101,11 @@ var ErrInvalidValue = errors.New("invalid value")
 func ParseScalar(value interface{}) (Scalar, error) {
 	switch castValue := value.(type) {
 	case bool:
-		return boolScalar(castValue), nil
+		return BoolScalar(castValue), nil
 	case string:
-		return stringScalar(castValue), nil
+		return StringScalar(castValue), nil
 	case float64:
-		return float64Scalar(castValue), nil
+		return Float64Scalar(castValue), nil
 	}
 
 	return nil, ErrInvalidValue

@@ -123,37 +123,37 @@ func TestParseScalar(t *testing.T) {
 
 func TestScalar_Bytes(t *testing.T) {
 	t.Run("ok - string", func(t *testing.T) {
-		s := stringScalar("string")
+		s := StringScalar("string")
 
 		assert.Equal(t, []byte("string"), s.Bytes())
 	})
 
 	t.Run("ok - number", func(t *testing.T) {
-		s := float64Scalar(1.0)
+		s := Float64Scalar(1.0)
 
 		assert.Equal(t, []byte{0x3f, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
 	})
 
 	t.Run("ok - negative number", func(t *testing.T) {
-		s := float64Scalar(-1.0)
+		s := Float64Scalar(-1.0)
 
 		assert.Equal(t, []byte{0xbf, 0xf0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
 	})
 
 	t.Run("ok - 0", func(t *testing.T) {
-		s := float64Scalar(0.0)
+		s := Float64Scalar(0.0)
 
 		assert.Equal(t, []byte{0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0}, s.Bytes())
 	})
 
 	t.Run("ok - true", func(t *testing.T) {
-		s := boolScalar(true)
+		s := BoolScalar(true)
 
 		assert.Equal(t, []byte{0x01}, s.Bytes())
 	})
 
 	t.Run("ok - false", func(t *testing.T) {
-		s := boolScalar(false)
+		s := BoolScalar(false)
 
 		assert.Equal(t, []byte{0x0}, s.Bytes())
 	})

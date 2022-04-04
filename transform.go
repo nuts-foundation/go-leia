@@ -30,8 +30,8 @@ type Transform func(Scalar) Scalar
 // ToLower transforms all Unicode letters mapped to their lower case.
 // It only transforms objects that conform to the Stringer interface.
 func ToLower(scalar Scalar) Scalar {
-	if s, ok := scalar.(stringScalar); ok {
-		return stringScalar(strings.ToLower(string(s)))
+	if s, ok := scalar.(StringScalar); ok {
+		return StringScalar(strings.ToLower(string(s)))
 	}
 
 	return scalar

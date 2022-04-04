@@ -48,11 +48,11 @@ func (t testIndexPart) Tokenize(value Scalar) []Scalar {
 	if t.tokenizer == nil {
 		return []Scalar{value}
 	}
-	if s, ok := value.(stringScalar); ok {
+	if s, ok := value.(StringScalar); ok {
 		tokens := t.tokenizer(string(s))
 		result := make([]Scalar, len(tokens))
 		for i, t := range tokens {
-			result[i] = stringScalar(t)
+			result[i] = StringScalar(t)
 		}
 		return result
 	}

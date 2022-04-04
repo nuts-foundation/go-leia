@@ -464,13 +464,13 @@ func (c *collection) ValuesAtPath(document Document, queryPath QueryPath) ([]Sca
 func valuesFromResult(result gjson.Result) ([]Scalar, error) {
 	switch result.Type {
 	case gjson.String:
-		return []Scalar{stringScalar(result.Str)}, nil
+		return []Scalar{StringScalar(result.Str)}, nil
 	case gjson.True:
-		return []Scalar{boolScalar(true)}, nil
+		return []Scalar{BoolScalar(true)}, nil
 	case gjson.False:
-		return []Scalar{boolScalar(false)}, nil
+		return []Scalar{BoolScalar(false)}, nil
 	case gjson.Number:
-		return []Scalar{float64Scalar(result.Num)}, nil
+		return []Scalar{Float64Scalar(result.Num)}, nil
 	case gjson.Null:
 		return []Scalar{}, nil
 	default:

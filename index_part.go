@@ -87,11 +87,11 @@ func (j fieldIndexer) Tokenize(scalar Scalar) []Scalar {
 		return []Scalar{scalar}
 	}
 
-	if s, ok := scalar.(stringScalar); ok {
+	if s, ok := scalar.(StringScalar); ok {
 		tokens := j.tokenizer(string(s))
 		result := make([]Scalar, len(tokens))
 		for i, t := range tokens {
-			result[i] = stringScalar(t)
+			result[i] = StringScalar(t)
 		}
 		return result
 	}
