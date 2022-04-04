@@ -26,7 +26,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/nuts-foundation/go-leia/v2"
+	"github.com/nuts-foundation/go-leia/v3"
 )
 
 func main() {
