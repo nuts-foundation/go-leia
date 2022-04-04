@@ -40,7 +40,7 @@ func TestCollection_AddIndex(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, c.IndexList, 1)
+		assert.Len(t, c.indexList, 1)
 	})
 
 	t.Run("ok - duplicate", func(t *testing.T) {
@@ -52,7 +52,7 @@ func TestCollection_AddIndex(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, c.IndexList, 1)
+		assert.Len(t, c.indexList, 1)
 	})
 
 	t.Run("ok - new index adds refs", func(t *testing.T) {
@@ -95,7 +95,7 @@ func TestCollection_DropIndex(t *testing.T) {
 	t.Run("ok - dropping index leaves other indices at rest", func(t *testing.T) {
 		db, c, i := testIndex(t)
 		i2 := c.NewIndex("other",
-			NewFieldIndexer("path.part", AliasOption("key")),
+			NewFieldIndexer(NewJSONPath("path.part")),
 		)
 		_ = c.Add([]Document{exampleDoc})
 		_ = c.AddIndex(i)
@@ -149,11 +149,14 @@ func TestCollection_Delete(t *testing.T) {
 }
 
 func TestCollection_Find(t *testing.T) {
+	key := NewJSONPath("path.part")
+	nonIndexed := NewJSONPath("non_indexed")
+
 	t.Run("ok", func(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value")))
+		q := New(Eq(key, MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -168,7 +171,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value"))).And(Eq("non_indexed", MustParseScalar("value")))
+		q := New(Eq(key, MustParseScalar("value"))).And(Eq(nonIndexed, MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -183,7 +186,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("non_indexed", MustParseScalar("value")))
+		q := New(Eq(nonIndexed, MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -198,7 +201,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value"))).And(Range("non_indexed", MustParseScalar("v"), MustParseScalar("value1")))
+		q := New(Eq(key, MustParseScalar("value"))).And(Range(nonIndexed, MustParseScalar("v"), MustParseScalar("value1")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -213,8 +216,8 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value"))).And(
-			Range("non_indexed", MustParseScalar("value1"), MustParseScalar("value2")))
+		q := New(Eq(key, MustParseScalar("value"))).And(
+			Range(nonIndexed, MustParseScalar("value1"), MustParseScalar("value2")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -228,7 +231,7 @@ func TestCollection_Find(t *testing.T) {
 	t.Run("ok - no docs", func(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
-		q := New(Eq("key", MustParseScalar("value")))
+		q := New(Eq(key, MustParseScalar("value")))
 
 		docs, err := c.Find(context.TODO(), q)
 
@@ -239,21 +242,11 @@ func TestCollection_Find(t *testing.T) {
 		assert.Len(t, docs, 0)
 	})
 
-	t.Run("error - nil query", func(t *testing.T) {
-		_, c, i := testIndex(t)
-		_ = c.AddIndex(i)
-		_ = c.Add([]Document{exampleDoc})
-
-		_, err := c.Find(context.TODO(), nil)
-
-		assert.Error(t, err)
-	})
-
 	t.Run("error - ctx cancelled", func(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value")))
+		q := New(Eq(key, MustParseScalar("value")))
 		ctx, cancelFn := context.WithCancel(context.Background())
 
 		cancelFn()
@@ -270,7 +263,7 @@ func TestCollection_Find(t *testing.T) {
 		_, c, i := testIndex(t)
 		_ = c.AddIndex(i)
 		_ = c.Add([]Document{exampleDoc})
-		q := New(Eq("key", MustParseScalar("value")))
+		q := New(Eq(key, MustParseScalar("value")))
 		ctx, _ := context.WithTimeout(context.Background(), time.Nanosecond)
 
 		_, err := c.Find(ctx, q)
@@ -284,10 +277,12 @@ func TestCollection_Find(t *testing.T) {
 }
 
 func TestCollection_Iterate(t *testing.T) {
+	key := NewJSONPath("path.part")
+
 	_, c, i := testIndex(t)
 	_ = c.AddIndex(i)
 	_ = c.Add([]Document{exampleDoc})
-	q := New(Eq("key", MustParseScalar("value")))
+	q := New(Eq(key, MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -307,8 +302,8 @@ func TestCollection_Iterate(t *testing.T) {
 		count := 0
 
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_, c := testCollection(t)
@@ -337,7 +332,7 @@ func TestCollection_IndexIterate(t *testing.T) {
 	db, c, i := testIndex(t)
 	_ = c.AddIndex(i)
 	_ = c.Add([]Document{exampleDoc})
-	q := New(Eq("key", MustParseScalar("value")))
+	q := New(Eq(NewJSONPath("path.part"), MustParseScalar("value")))
 
 	t.Run("ok - count fn", func(t *testing.T) {
 		count := 0
@@ -406,11 +401,11 @@ func TestCollection_Get(t *testing.T) {
 	})
 }
 
-func TestCollection_ValuesAtPath(t *testing.T) {
+func TestCollection_JSONPathValueCollector(t *testing.T) {
 	json := []byte(`
 {
 	"id": 1,
-	"name": "test",
+	"path": "test",
 	"colors": ["blue", "orange"],
 	"items" : [
 		{
@@ -432,10 +427,12 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 }
 `)
 
-	c := collection{}
+	c := collection{
+		valueCollector: JSONPathValueCollector,
+	}
 
 	t.Run("ok - find a single float value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(json, "id")
+		values, err := c.ValuesAtPath(json, NewJSONPath("id"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -446,7 +443,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 
 	t.Run("ok - find a single string value", func(t *testing.T) {
-		values, err := c.ValuesAtPath(json, "name")
+		values, err := c.ValuesAtPath(json, NewJSONPath("path"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -457,7 +454,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 
 	t.Run("ok - find a list of values", func(t *testing.T) {
-		values, err := c.ValuesAtPath(json, "colors")
+		values, err := c.ValuesAtPath(json, NewJSONPath("colors"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -469,7 +466,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 
 	t.Run("ok - find a list of values from a sublist", func(t *testing.T) {
-		values, err := c.ValuesAtPath(json, "items.#.type")
+		values, err := c.ValuesAtPath(json, NewJSONPath("items.#.type"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -481,7 +478,7 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 
 	t.Run("ok - values at an unknown path", func(t *testing.T) {
-		values, err := c.ValuesAtPath(json, "unknown")
+		values, err := c.ValuesAtPath(json, NewJSONPath("unknown"))
 
 		if !assert.NoError(t, err) {
 			return
@@ -491,42 +488,127 @@ func TestCollection_ValuesAtPath(t *testing.T) {
 	})
 
 	t.Run("error - invalid json", func(t *testing.T) {
-		_, err := c.ValuesAtPath([]byte("}"), "id")
+		_, err := c.ValuesAtPath([]byte("}"), NewJSONPath("id"))
 
 		assert.Equal(t, ErrInvalidJSON, err)
 	})
 
 	t.Run("error - indexing an object", func(t *testing.T) {
-		_, err := c.ValuesAtPath(json, "animals.#.nesting")
+		_, err := c.ValuesAtPath(json, NewJSONPath("animals.#.nesting"))
 
 		assert.EqualError(t, err, "type at path not supported for indexing: {\n\t\t\t\t\"type\": \"bird\"\n\t\t\t}")
 	})
 }
 
-func testIndex(t *testing.T) (*bbolt.DB, collection, Index) {
+func TestCollection_JSONLDValueCollector(t *testing.T) {
+
+	document := Document(jsonLDExample)
+
+	c := collection{
+		valueCollector: JSONLDValueCollector,
+	}
+
+	t.Run("ok - find a single string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/name"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "Jane Doe", values[0].value())
+	})
+
+	t.Run("ok - find a single nested string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children", "http://example.com/name"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "John Doe", values[0].value())
+	})
+
+	t.Run("ok - find a single list value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/telephone"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "06-12345678", values[0].value())
+	})
+
+	t.Run("ok - find a single id value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/url"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "http://www.janedoe.com", values[0].value())
+	})
+
+	t.Run("ok - empty for nothing", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath())
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 0)
+	})
+
+	t.Run("ok - empty for incomplete path", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 0)
+	})
+}
+
+func TestJSONPathValueCollector(t *testing.T) {
+	t.Run("error - invalid QueryPath type", func(t *testing.T) {
+		_, err := JSONPathValueCollector(nil, Document{}, NewIRIPath())
+
+		assert.Equal(t, ErrInvalidQuery, err)
+	})
+}
+
+func TestJSONLDValueCollector(t *testing.T) {
+	t.Run("error - invalid QueryPath type", func(t *testing.T) {
+		_, err := JSONLDValueCollector(nil, Document{}, NewJSONPath("."))
+
+		assert.Equal(t, ErrInvalidQuery, err)
+	})
+}
+
+func testIndex(t *testing.T) (*bbolt.DB, *collection, Index) {
 	db := testDB(t)
 	c := testCollectionWithDB(db)
 
 	return db, c, c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key")),
+		NewFieldIndexer(NewJSONPath("path.part")),
 	)
 }
 
-func testCollection(t *testing.T) (*bbolt.DB, collection) {
+func testCollection(t *testing.T) (*bbolt.DB, *collection) {
 	db := testDB(t)
-	return db, collection{
-		Name:      "test",
-		db:        db,
-		IndexList: []Index{},
-		refMake:   defaultReferenceCreator,
-	}
+	return db, testCollectionWithDB(db)
 }
 
-func testCollectionWithDB(db *bbolt.DB) collection {
-	return collection{
-		Name:      "test",
-		db:        db,
-		IndexList: []Index{},
-		refMake:   defaultReferenceCreator,
+func testCollectionWithDB(db *bbolt.DB) *collection {
+	return &collection{
+		name:           "test",
+		db:             db,
+		indexList:      []Index{},
+		refMake:        defaultReferenceCreator,
+		valueCollector: JSONPathValueCollector,
 	}
 }

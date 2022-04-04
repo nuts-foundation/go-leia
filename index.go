@@ -26,10 +26,10 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// Index describes an index. An index is based on a json path and has a name.
-// The name is used for storage but also as identifier in search options.
+// Index describes an index. An index is based on a json path and has a path.
+// The path is used for storage but also as identifier in search options.
 type Index interface {
-	// Name returns the name of this index
+	// Name returns the path of this index
 	Name() string
 	// Add indexes the document. It uses a sub-bucket of the given bucket.
 	// It will only be indexed if the complete index matches.
@@ -42,7 +42,7 @@ type Index interface {
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
 	// it will not filter out double values
 	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
-	// BucketName returns the bucket name for this index
+	// BucketName returns the bucket path for this index
 	BucketName() []byte
 	// Sort the query so its parts align with the index parts.
 	// includeMissing, if true, the sort will append queryParts not matched by an index at the end.
@@ -190,7 +190,7 @@ func (i *index) IsMatch(query Query) float64 {
 outer:
 	for thc, ip := range i.indexParts {
 		for _, qp := range parts {
-			if ip.Name() == qp.Name() {
+			if ip.Equals(qp) {
 				hitcount++
 			}
 		}
@@ -207,9 +207,9 @@ func (i *index) Sort(query Query, includeMissing bool) []QueryPart {
 	var sorted = make([]QueryPart, len(i.indexParts))
 
 outer:
-	for _, qp := range query.Parts() {
+	for _, qp := range query.parts {
 		for j, ip := range i.indexParts {
-			if ip.Name() == qp.Name() {
+			if ip.Equals(qp) {
 				sorted[j] = qp
 				continue outer
 			}
@@ -227,9 +227,9 @@ outer:
 	if includeMissing {
 		// now include all params not in the sorted list
 	outerMissing:
-		for _, qp := range query.Parts() {
+		for _, qp := range query.parts {
 			for _, sp := range sorted {
-				if sp.Name() == qp.Name() {
+				if sp.Equals(qp) {
 					continue outerMissing
 				}
 			}
@@ -246,7 +246,7 @@ func (i *index) QueryPartsOutsideIndex(query Query) []QueryPart {
 	parts := i.Sort(query, true)
 
 	for j, qp := range parts {
-		if j >= len(i.indexParts) || qp.Name() != i.indexParts[j].Name() {
+		if j >= len(i.indexParts) || !qp.Equals(i.indexParts[j]) {
 			break
 		}
 		hits++
@@ -300,7 +300,7 @@ func (i *index) matchers(sortedQueryParts []QueryPart) []matcher {
 
 func (i *index) Keys(j FieldIndexer, document Document) ([]Scalar, error) {
 	// first get the raw values from the query path
-	rawKeys, err := i.collection.ValuesAtPath(document, j.Path())
+	rawKeys, err := i.collection.ValuesAtPath(document, j.QueryPath())
 	if err != nil {
 		return nil, err
 	}

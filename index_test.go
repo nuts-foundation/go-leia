@@ -32,9 +32,9 @@ var valueAsScalar = MustParseScalar("value")
 
 func TestNewIndex(t *testing.T) {
 	_, c := testCollection(t)
-	i := c.NewIndex("name")
+	i := c.NewIndex("path")
 
-	assert.Equal(t, "name", i.Name())
+	assert.Equal(t, "path", i.Name())
 	assert.Len(t, i.(*index).indexParts, 0)
 }
 
@@ -46,7 +46,7 @@ func TestIndex_AddJson(t *testing.T) {
 	db, c := testCollection(t)
 
 	t.Run("ok - value added as key to document reference", func(t *testing.T) {
-		i := c.NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption("key")))
+		i := c.NewIndex(t.Name(), NewFieldIndexer(NewJSONPath("path.part")))
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, doc)
@@ -57,8 +57,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - values added as key to document reference", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.parts", AliasOption("key")),
-			NewFieldIndexer("path.part", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.parts")),
+			NewFieldIndexer(NewJSONPath("path.part")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -71,8 +71,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - value added as key using recursion", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -87,8 +87,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -107,7 +107,7 @@ func TestIndex_AddJson(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := c.NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption("key")))
+		i := c.NewIndex(t.Name(), NewFieldIndexer(NewJSONPath("path.parts")))
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			return i.Add(testBucket(t, tx), ref, []byte("}"))
@@ -118,8 +118,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.parts", AliasOption("key")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -131,8 +131,8 @@ func TestIndex_AddJson(t *testing.T) {
 
 	t.Run("ok - value added with nil index value", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.unknown", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.unknown")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -154,7 +154,7 @@ func TestIndex_Delete(t *testing.T) {
 	db, c := testCollection(t)
 
 	t.Run("ok - value added and removed", func(t *testing.T) {
-		i := c.NewIndex(t.Name(), NewFieldIndexer("path.part", AliasOption("key")))
+		i := c.NewIndex(t.Name(), NewFieldIndexer(NewJSONPath("path.part")))
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -167,8 +167,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - value added and removed using recursion", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -181,7 +181,7 @@ func TestIndex_Delete(t *testing.T) {
 	})
 
 	t.Run("error - illegal document format", func(t *testing.T) {
-		i := c.NewIndex(t.Name(), NewFieldIndexer("path.parts", AliasOption("key")))
+		i := c.NewIndex(t.Name(), NewFieldIndexer(NewJSONPath("path.parts")))
 
 		err := db.Update(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -194,8 +194,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -208,8 +208,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - not indexed", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -222,8 +222,8 @@ func TestIndex_Delete(t *testing.T) {
 
 	t.Run("ok - multiple entries", func(t *testing.T) {
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key")),
-			NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+			NewFieldIndexer(NewJSONPath("path.part")),
+			NewFieldIndexer(NewJSONPath("path.more.#.parts")),
 		)
 		doc2 := []byte(jsonExample2)
 		ref2 := defaultReferenceCreator(doc2)
@@ -248,44 +248,46 @@ func TestIndex_Delete(t *testing.T) {
 
 func TestIndex_IsMatch(t *testing.T) {
 	_, c := testCollection(t)
+	key := NewJSONPath("path.part")
+	key2 := NewJSONPath("path.more.#.parts")
 	i := c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key")),
-		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+		NewFieldIndexer(key),
+		NewFieldIndexer(key2),
 	)
 
 	t.Run("ok - exact match", func(t *testing.T) {
 		f := i.IsMatch(
-			New(Eq("key", valueAsScalar)).
-				And(Eq("key2", valueAsScalar)))
+			New(Eq(key, valueAsScalar)).
+				And(Eq(key2, valueAsScalar)))
 
 		assert.Equal(t, 1.0, f)
 	})
 
 	t.Run("ok - exact match reverse ordering", func(t *testing.T) {
 		f := i.IsMatch(
-			New(Eq("key2", valueAsScalar)).
-				And(Eq("key", valueAsScalar)))
+			New(Eq(key2, valueAsScalar)).
+				And(Eq(key, valueAsScalar)))
 
 		assert.Equal(t, 1.0, f)
 	})
 
 	t.Run("ok - partial match", func(t *testing.T) {
 		f := i.IsMatch(
-			New(Eq("key", valueAsScalar)))
+			New(Eq(key, valueAsScalar)))
 
 		assert.Equal(t, 0.5, f)
 	})
 
 	t.Run("ok - no match", func(t *testing.T) {
 		f := i.IsMatch(
-			New(Eq("key3", valueAsScalar)))
+			New(Eq(NewJSONPath("key3"), valueAsScalar)))
 
 		assert.Equal(t, 0.0, f)
 	})
 
 	t.Run("ok - no match on second index only", func(t *testing.T) {
 		f := i.IsMatch(
-			New(Eq("key2", valueAsScalar)))
+			New(Eq(key2, valueAsScalar)))
 
 		assert.Equal(t, 0.0, f)
 	})
@@ -296,12 +298,15 @@ func TestIndex_Find(t *testing.T) {
 	ref := defaultReferenceCreator(doc)
 	doc2 := []byte(jsonExample2)
 	ref2 := defaultReferenceCreator(doc2)
+	key := NewJSONPath("path.part")
+	key2 := NewJSONPath("path.parts")
+	key3 := NewJSONPath("path.more.#.parts")
 	db, c := testCollection(t)
 
 	i := c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
-		NewFieldIndexer("path.parts", AliasOption("key2")),
-		NewFieldIndexer("path.more.#.parts", AliasOption("key3")),
+		NewFieldIndexer(key, TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+		NewFieldIndexer(key2),
+		NewFieldIndexer(key3),
 	)
 
 	_ = db.Update(func(tx *bbolt.Tx) error {
@@ -311,7 +316,7 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - not found", func(t *testing.T) {
-		q := New(Eq("key", MustParseScalar("not_found")))
+		q := New(Eq(key, MustParseScalar("not_found")))
 		found := false
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -327,9 +332,9 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - exact match", func(t *testing.T) {
-		q := New(Eq("key", valueAsScalar)).And(
-			Eq("key2", MustParseScalar("value2"))).And(
-			Eq("key3", MustParseScalar(1.0)))
+		q := New(Eq(key, valueAsScalar)).And(
+			Eq(key2, MustParseScalar("value2"))).And(
+			Eq(key3, MustParseScalar(1.0)))
 		count := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -345,9 +350,9 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - match through transformer", func(t *testing.T) {
-		q := New(Eq("key", MustParseScalar("VALUE"))).And(
-			Eq("key2", MustParseScalar("value2"))).And(
-			Eq("key3", MustParseScalar(1.0)))
+		q := New(Eq(key, MustParseScalar("VALUE"))).And(
+			Eq(key2, MustParseScalar("value2"))).And(
+			Eq(key3, MustParseScalar(1.0)))
 		count := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
@@ -363,7 +368,7 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("ok - partial match", func(t *testing.T) {
-		q := New(Eq("key", valueAsScalar))
+		q := New(Eq(key, valueAsScalar))
 
 		count := 0
 
@@ -384,9 +389,9 @@ func TestIndex_Find(t *testing.T) {
 		db, c := testCollection(t)
 
 		i := c.NewIndex(t.Name(),
-			NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
-			NewFieldIndexer("path.unknown", AliasOption("key2")),
-			NewFieldIndexer("path.unknown2", AliasOption("key3")),
+			NewFieldIndexer(key, TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+			NewFieldIndexer(NewJSONPath("path.unknown")),
+			NewFieldIndexer(NewJSONPath("path.unknown2")),
 		)
 
 		_ = db.Update(func(tx *bbolt.Tx) error {
@@ -395,7 +400,7 @@ func TestIndex_Find(t *testing.T) {
 			return i.Add(b, ref2, doc2)
 		})
 
-		q := New(Eq("key", valueAsScalar))
+		q := New(Eq(key, valueAsScalar))
 
 		count := 0
 
@@ -413,7 +418,7 @@ func TestIndex_Find(t *testing.T) {
 	})
 
 	t.Run("error - wrong query", func(t *testing.T) {
-		q := New(Eq("key3", valueAsScalar))
+		q := New(Eq(key3, valueAsScalar))
 
 		err := db.View(func(tx *bbolt.Tx) error {
 			b := testBucket(t, tx)
@@ -430,9 +435,10 @@ func TestIndex_findR(t *testing.T) {
 	doc := []byte(jsonExample)
 	ref := defaultReferenceCreator(doc)
 	db, c := testCollection(t)
+	key := NewJSONPath("path.part")
 
 	i := c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key"), TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
+		NewFieldIndexer(key, TokenizerOption(WhiteSpaceTokenizer), TransformerOption(ToLower)),
 	).(*index)
 
 	_ = db.Update(func(tx *bbolt.Tx) error {
@@ -440,8 +446,8 @@ func TestIndex_findR(t *testing.T) {
 		return i.Add(b, ref, doc)
 	})
 
-	q := New(Eq("key", valueAsScalar))
-	matchers := i.matchers(q.Parts())
+	q := New(Eq(key, valueAsScalar))
+	matchers := i.matchers(q.parts)
 	var found bool
 	foundFunc := func(key Reference, value []byte) error {
 		found = true
@@ -509,98 +515,105 @@ func TestIndex_addRefToBucket(t *testing.T) {
 
 func TestIndex_Sort(t *testing.T) {
 	_, c := testCollection(t)
+	key := NewJSONPath("path.part")
+	key2 := NewJSONPath("path.more.#.parts")
+	key3 := NewJSONPath("key3")
 	i := c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key")),
-		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+		NewFieldIndexer(key),
+		NewFieldIndexer(key2),
 	)
 
 	t.Run("returns correct order when given in reverse", func(t *testing.T) {
 		sorted := i.Sort(
-			New(Eq("key2", valueAsScalar)).
-				And(Eq("key", valueAsScalar)), false)
+			New(Eq(key2, valueAsScalar)).
+				And(Eq(key, valueAsScalar)), false)
 
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, "key", sorted[0].Name())
-		assert.Equal(t, "key2", sorted[1].Name())
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("returns correct order when given in correct order", func(t *testing.T) {
 		sorted := i.Sort(
-			New(Eq("key", valueAsScalar)).
-				And(Eq("key2", valueAsScalar)), false)
+			New(Eq(key, valueAsScalar)).
+				And(Eq(key2, valueAsScalar)), false)
 
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, "key", sorted[0].Name())
-		assert.Equal(t, "key2", sorted[1].Name())
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("does not include any keys when primary key is missing", func(t *testing.T) {
 		sorted := i.Sort(
-			New(Eq("key2", valueAsScalar)), false)
+			New(Eq(key2, valueAsScalar)), false)
 
 		assert.Len(t, sorted, 0)
 	})
 
 	t.Run("includes all keys when includeMissing option is given", func(t *testing.T) {
 		sorted := i.Sort(
-			New(Eq("key3", valueAsScalar)).
-				And(Eq("key2", valueAsScalar)), true)
+			New(Eq(key3, valueAsScalar)).
+				And(Eq(key2, valueAsScalar)), true)
 
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, "key3", sorted[0].Name())
-		assert.Equal(t, "key2", sorted[1].Name())
+		assert.Equal(t, key3, sorted[0].QueryPath())
+		assert.Equal(t, key2, sorted[1].QueryPath())
 	})
 
 	t.Run("includes additional keys when includeMissing option is given", func(t *testing.T) {
 		sorted := i.Sort(
-			New(Eq("key3", valueAsScalar)).
-				And(Eq("key", valueAsScalar)), true)
+			New(Eq(key3, valueAsScalar)).
+				And(Eq(key, valueAsScalar)), true)
 
 		if !assert.Len(t, sorted, 2) {
 			return
 		}
-		assert.Equal(t, "key", sorted[0].Name())
-		assert.Equal(t, "key3", sorted[1].Name())
+		assert.Equal(t, key, sorted[0].QueryPath())
+		assert.Equal(t, key3, sorted[1].QueryPath())
 	})
 }
 
 func TestIndex_QueryPartsOutsideIndex(t *testing.T) {
+	key := NewJSONPath("path.part")
+	key2 := NewJSONPath("path.more.#.parts")
+	key3 := NewJSONPath("key3")
+
 	_, c := testCollection(t)
 	i := c.NewIndex(t.Name(),
-		NewFieldIndexer("path.part", AliasOption("key")),
-		NewFieldIndexer("path.more.#.parts", AliasOption("key2")),
+		NewFieldIndexer(key),
+		NewFieldIndexer(key2),
 	)
 
 	t.Run("returns empty list when all parts in index", func(t *testing.T) {
 		additional := i.QueryPartsOutsideIndex(
-			New(Eq("key2", valueAsScalar)).
-				And(Eq("key", valueAsScalar)))
+			New(Eq(key2, valueAsScalar)).
+				And(Eq(key, valueAsScalar)))
 
 		assert.Len(t, additional, 0)
 	})
 
 	t.Run("returns all parts when none match index", func(t *testing.T) {
 		additional := i.QueryPartsOutsideIndex(
-			New(Eq("key2", valueAsScalar)))
+			New(Eq(key2, valueAsScalar)))
 
 		assert.Len(t, additional, 1)
 	})
 
 	t.Run("returns correct params on partial index match", func(t *testing.T) {
 		additional := i.QueryPartsOutsideIndex(
-			New(Eq("key3", valueAsScalar)).
-				And(Eq("key", valueAsScalar)))
+			New(Eq(key3, valueAsScalar)).
+				And(Eq(key, valueAsScalar)))
 
 		if !assert.Len(t, additional, 1) {
 			return
 		}
-		assert.Equal(t, "key3", additional[0].Name())
+		assert.Equal(t, key3, additional[0].QueryPath())
 	})
 }
 
@@ -620,7 +633,7 @@ func TestIndex_Keys(t *testing.T) {
 
 	t.Run("ok - sub object", func(t *testing.T) {
 		_, _, i := testIndex(t)
-		ip := NewFieldIndexer("path.part")
+		ip := NewFieldIndexer(NewJSONPath("path.part"))
 		keys, err := i.Keys(ip, document)
 
 		if !assert.NoError(t, err) {
@@ -636,7 +649,7 @@ func TestIndex_Keys(t *testing.T) {
 
 	t.Run("ok - sub sub object", func(t *testing.T) {
 		_, _, i := testIndex(t)
-		ip := NewFieldIndexer("path.more.#.parts")
+		ip := NewFieldIndexer(NewJSONPath("path.more.#.parts"))
 		keys, err := i.Keys(ip, document)
 
 		if !assert.NoError(t, err) {
@@ -655,7 +668,7 @@ func TestIndex_Keys(t *testing.T) {
 
 	t.Run("ok - list", func(t *testing.T) {
 		_, _, i := testIndex(t)
-		ip := NewFieldIndexer("path.parts")
+		ip := NewFieldIndexer(NewJSONPath("path.parts"))
 		keys, err := i.Keys(ip, document)
 
 		if !assert.NoError(t, err) {
@@ -672,7 +685,7 @@ func TestIndex_Keys(t *testing.T) {
 
 	t.Run("ok - no match", func(t *testing.T) {
 		_, _, i := testIndex(t)
-		ip := NewFieldIndexer("path.party")
+		ip := NewFieldIndexer(NewJSONPath("path.party"))
 		keys, err := i.Keys(ip, document)
 
 		if !assert.NoError(t, err) {
@@ -684,7 +697,7 @@ func TestIndex_Keys(t *testing.T) {
 
 	t.Run("error - incorrect document", func(t *testing.T) {
 		_, _, i := testIndex(t)
-		ip := NewFieldIndexer("path.part")
+		ip := NewFieldIndexer(NewJSONPath("path.part"))
 
 		_, err := i.Keys(ip, []byte("}"))
 

@@ -1,6 +1,6 @@
 /*
  * go-leia
- * Copyright (C) 2021 Nuts community
+ * Copyright (C) 2022 Nuts community
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,9 +22,11 @@ package leia
 import (
 	"context"
 	"crypto/sha1"
+	"encoding/json"
 	"errors"
 	"fmt"
 
+	"github.com/piprate/json-gold/ld"
 	"github.com/tidwall/gjson"
 	"go.etcd.io/bbolt"
 )
@@ -46,9 +48,9 @@ func documentCollectionByteRef() []byte {
 // Collection defines a logical collection of documents and indices within a store.
 type Collection interface {
 	// AddIndex to this collection. It doesn't matter if the index already exists.
-	// If you want to override an index (by name) drop it first.
+	// If you want to override an index (by path) drop it first.
 	AddIndex(index ...Index) error
-	// DropIndex by name
+	// DropIndex by path
 	DropIndex(name string) error
 	// NewIndex creates a new index from the context of this collection
 	// If multiple field indexers are given, a compound index is created.
@@ -71,8 +73,8 @@ type Collection interface {
 	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
 	// returns ErrNoIndex when no suitable index can be found
 	IndexIterate(query Query, fn ReferenceScanFn) error
-	// ValuesAtPath returns a slice with the values found at the given JSON path query
-	ValuesAtPath(document Document, jsonPath string) ([]Scalar, error)
+	// ValuesAtPath returns a slice with the values found by the configured valueCollector
+	ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error)
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -91,10 +93,12 @@ func defaultReferenceCreator(doc Document) Reference {
 }
 
 type collection struct {
-	Name      string `json:"name"`
-	db        *bbolt.DB
-	IndexList []Index `json:"indices"`
-	refMake   ReferenceFunc
+	name           string
+	db             *bbolt.DB
+	indexList      []Index
+	refMake        ReferenceFunc
+	documentLoader ld.DocumentLoader
+	valueCollector valueCollector
 }
 
 func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
@@ -107,14 +111,14 @@ func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {
 
 func (c *collection) AddIndex(indexes ...Index) error {
 	for _, index := range indexes {
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if i.Name() == index.Name() {
 				return nil
 			}
 		}
 
 		if err := c.db.Update(func(tx *bbolt.Tx) error {
-			bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+			bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 			if err != nil {
 				return err
 			}
@@ -139,7 +143,7 @@ func (c *collection) AddIndex(indexes ...Index) error {
 			return err
 		}
 
-		c.IndexList = append(c.IndexList, index)
+		c.indexList = append(c.indexList, index)
 	}
 
 	return nil
@@ -147,14 +151,14 @@ func (c *collection) AddIndex(indexes ...Index) error {
 
 func (c *collection) DropIndex(name string) error {
 	return c.db.Update(func(tx *bbolt.Tx) error {
-		bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+		bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 		if err != nil {
 			return err
 		}
 
-		var newIndices = make([]Index, len(c.IndexList))
+		var newIndices = make([]Index, len(c.indexList))
 		j := 0
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			if name == i.Name() {
 				bucket.DeleteBucket(i.BucketName())
 			} else {
@@ -162,7 +166,7 @@ func (c *collection) DropIndex(name string) error {
 				j++
 			}
 		}
-		c.IndexList = newIndices[:j]
+		c.indexList = newIndices[:j]
 		return nil
 	})
 }
@@ -180,7 +184,7 @@ func (c *collection) Add(jsonSet []Document) error {
 }
 
 func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
-	bucket, err := tx.CreateBucketIfNotExists([]byte(c.Name))
+	bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
 	if err != nil {
 		return err
 	}
@@ -195,7 +199,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 
 		// indices
 		// buckets are cached within tx
-		for _, i := range c.IndexList {
+		for _, i := range c.indexList {
 			err = i.Add(bucket, ref, doc)
 			if err != nil {
 				return err
@@ -269,7 +273,7 @@ func (c *collection) Delete(doc Document) error {
 }
 
 func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	bucket := tx.Bucket([]byte(c.Name))
+	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
 	}
@@ -286,7 +290,7 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 	}
 
 	// indices
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		err = i.Delete(bucket, ref, doc)
 		if err != nil {
 			return err
@@ -297,10 +301,6 @@ func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
 }
 
 func (c *collection) queryPlan(query Query) (queryPlan, error) {
-	if query == nil {
-		return nil, ErrNoQuery
-	}
-
 	index := c.findIndex(query)
 
 	if index == nil {
@@ -325,15 +325,11 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 // The index may, at most, be one longer than the number of search options.
 // The longest index will win.
 func (c *collection) findIndex(query Query) Index {
-	if query == nil {
-		return nil
-	}
-
 	// first map the indices to the number of matching search options
 	var cIndex Index
 	var cMatch float64
 
-	for _, i := range c.IndexList {
+	for _, i := range c.indexList {
 		m := i.IsMatch(query)
 		if m > cMatch {
 			cIndex = i
@@ -366,21 +362,103 @@ func (c *collection) Get(key Reference) (Document, error) {
 }
 
 func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
-	bucket := tx.Bucket([]byte(c.Name))
+	bucket := tx.Bucket([]byte(c.name))
 	if bucket == nil {
 		return nil
 	}
 	return bucket.Bucket(documentCollectionByteRef())
 }
 
-// ValuesAtPath returns a slice with the values found at the given JSON path query
-func (c *collection) ValuesAtPath(document Document, jsonPath string) ([]Scalar, error) {
+// valueCollector is responsible for going through the document and finding the Scalars that match the Query
+type valueCollector func(collection *collection, document Document, queryPath QueryPath) ([]Scalar, error)
+
+// JSONPathValueCollector collects values at a given JSON path expression. Objects are delimited by a dot and lists use an extra # in the expression:
+// object.list.#.key
+func JSONPathValueCollector(_ *collection, document Document, queryPath QueryPath) ([]Scalar, error) {
+	jsonPath, ok := queryPath.(jsonPath)
+	if !ok {
+		return nil, ErrInvalidQuery
+	}
+
 	if !gjson.ValidBytes(document) {
 		return nil, ErrInvalidJSON
 	}
-	result := gjson.GetBytes(document, jsonPath)
+	result := gjson.GetBytes(document, string(jsonPath))
 
 	return valuesFromResult(result)
+}
+
+// JSONLDValueCollector collects values given a list of IRIs that represent the nesting of the objects.
+func JSONLDValueCollector(collection *collection, document Document, queryPath QueryPath) ([]Scalar, error) {
+	iriPath, ok := queryPath.(iriPath)
+	if !ok {
+		return nil, ErrInvalidQuery
+	}
+
+	if len(iriPath.iris) == 0 {
+		return []Scalar{}, nil
+	}
+
+	var input interface{}
+	if err := json.Unmarshal(document, &input); err != nil {
+		return nil, err
+	}
+
+	options := ld.NewJsonLdOptions("")
+	options.DocumentLoader = collection.documentLoader
+	expanded, err := ld.NewJsonLdProcessor().Expand(input, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return valuesFromSliceAtPath(expanded, iriPath), nil
+}
+
+func valuesFromSliceAtPath(expanded []interface{}, termPath iriPath) []Scalar {
+	result := make([]Scalar, 0)
+
+	for _, sub := range expanded {
+		switch typedSub := sub.(type) {
+		case []interface{}:
+			result = append(result, valuesFromSliceAtPath(typedSub, termPath)...)
+		case map[string]interface{}:
+			result = append(result, valuesFromMapAtPath(typedSub, termPath)...)
+		}
+	}
+
+	return result
+}
+
+func valuesFromMapAtPath(expanded map[string]interface{}, termPath iriPath) []Scalar {
+	// JSON-LD in expanded form either has @value, @id, @list or @set
+	if termPath.IsEmpty() {
+		if value, ok := expanded["@value"]; ok {
+			return []Scalar{MustParseScalar(value)}
+		}
+		if id, ok := expanded["@id"]; ok {
+			return []Scalar{MustParseScalar(id)}
+		}
+		if list, ok := expanded["@list"]; ok {
+			castList := list.([]interface{})
+			return valuesFromSliceAtPath(castList, termPath)
+		}
+	}
+
+	if value, ok := expanded[termPath.Head()]; ok {
+		// the value should now be a slice
+		next, ok := value.([]interface{})
+		if !ok {
+			return nil
+		}
+		return valuesFromSliceAtPath(next, termPath.Tail())
+	}
+
+	return nil
+}
+
+// ValuesAtPath returns a slice with the values found at the given JSON path query
+func (c *collection) ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error) {
+	return c.valueCollector(c, document, queryPath)
 }
 
 func valuesFromResult(result gjson.Result) ([]Scalar, error) {

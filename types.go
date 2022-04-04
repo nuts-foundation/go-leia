@@ -35,6 +35,9 @@ type Document []byte
 // ErrInvalidJSON is returned when invalid JSON is parsed
 var ErrInvalidJSON = errors.New("invalid json")
 
+// ErrInvalidQuery is returned when a collection is queried with the wrong type
+var ErrInvalidQuery = errors.New("invalid query type")
+
 // Reference equals a document hash. In an index, the values are references to docs.
 type Reference []byte
 

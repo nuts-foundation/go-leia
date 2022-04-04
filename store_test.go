@@ -23,13 +23,14 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/piprate/json-gold/ld"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewStore(t *testing.T) {
 	t.Run("ok", func(t *testing.T) {
 		f := filepath.Join(testDirectory(t), "test.db")
-		s, err := NewStore(f, true)
+		s, err := NewStore(f, WithoutSync())
 
 		if !assert.NoError(t, err) {
 			return
@@ -39,40 +40,63 @@ func TestNewStore(t *testing.T) {
 	})
 
 	t.Run("error", func(t *testing.T) {
-		_, err := NewStore("store_test.go", true)
+		_, err := NewStore("store_test.go", WithoutSync())
 
 		assert.Error(t, err)
 	})
 }
 
-func TestStore_Collection(t *testing.T) {
+func TestStore_JSONCollection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
-	s, _ := NewStore(f, true)
+	s, _ := NewStore(f, WithoutSync())
 
-	c := s.Collection("test")
+	c := s.JSONCollection("test")
 
 	if !assert.NotNil(t, c) {
 		return
 	}
 
-	t.Run("db is set", func(t *testing.T) {
+	assert.NotNil(t, c.(*collection).db)
+	assert.NotNil(t, c.(*collection).refMake)
+	assert.NotNil(t, c.(*collection).name)
+	assert.NotNil(t, c.(*collection).valueCollector)
+}
+
+func TestStore_JSONLDCollection(t *testing.T) {
+	t.Run("defaults", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, _ := NewStore(f, WithoutSync())
+
+		c := s.JSONLDCollection("test")
+
+		if !assert.NotNil(t, c) {
+			return
+		}
+
 		assert.NotNil(t, c.(*collection).db)
-	})
-
-	t.Run("refMake is set", func(t *testing.T) {
 		assert.NotNil(t, c.(*collection).refMake)
+		assert.NotNil(t, c.(*collection).name)
+		assert.NotNil(t, c.(*collection).documentLoader)
+		assert.NotNil(t, c.(*collection).valueCollector)
 	})
 
-	t.Run("name is set", func(t *testing.T) {
-		assert.NotNil(t, c.(*collection).Name)
+	t.Run("custom documentLoader", func(t *testing.T) {
+		f := filepath.Join(testDirectory(t), "test.db")
+		s, _ := NewStore(f, WithoutSync(), WithDocumentLoader(testDocumentLoader{}))
+
+		c := s.JSONLDCollection("test")
+
+		if !assert.NotNil(t, c) {
+			return
+		}
+
+		_, ok := c.(*collection).documentLoader.(testDocumentLoader)
+		assert.True(t, ok)
 	})
+}
 
-	t.Run("collections are stored in instance", func(t *testing.T) {
-		_, c := testCollection(t)
+type testDocumentLoader struct{}
 
-		assert.Len(t, c.IndexList, 0)
-		c.AddIndex(c.NewIndex("test", NewFieldIndexer("path")))
-
-		assert.Len(t, c.IndexList, 1)
-	})
+func (t testDocumentLoader) LoadDocument(u string) (*ld.RemoteDocument, error) {
+	return nil, nil
 }

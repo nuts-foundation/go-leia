@@ -42,14 +42,14 @@ func main() {
 		}
 	}()
 
-	s, err := leia.NewStore(path.Join(dir, "documents.db"), false)
+	s, err := leia.NewStore(path.Join(dir, "documents.db"))
 	if err != nil {
 		panic(err)
 	}
-	c := s.Collection("vcs")
+	c := s.JSONCollection("vcs")
 	var credentialIndex = c.NewIndex("subject.resource",
-		leia.NewFieldIndexer("credentialSubject.id", leia.AliasOption("subject")),
-		leia.NewFieldIndexer("credentialSubject.resources.#.path", leia.AliasOption("resource"), leia.TransformerOption(leia.ToLower)),
+		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.id")),
+		leia.NewFieldIndexer(leia.NewJSONPath("credentialSubject.resources.#.path"), leia.TransformerOption(leia.ToLower)),
 	)
 	err = c.AddIndex(credentialIndex)
 	if err != nil {
@@ -64,8 +64,8 @@ func main() {
 	genJson(issuers, subjects, total, c)
 	fmt.Printf("added %d docs\n", total*subjects*issuers)
 
-	query := leia.New(leia.Eq("subject", leia.MustParseScalar("did:nuts:subject_8"))).
-		And(leia.Eq("resource", leia.MustParseScalar("/resource/15/8_9")))
+	query := leia.New(leia.Eq(leia.NewJSONPath("credentialSubject.id"), leia.MustParseScalar("did:nuts:subject_8"))).
+		And(leia.Eq(leia.NewJSONPath("credentialSubject.resources.#.path"), leia.MustParseScalar("/resource/15/8_9")))
 
 	j, err := c.Find(context.Background(), query)
 	if err != nil {

@@ -38,20 +38,18 @@ func TokenizerOption(tokenizer Tokenizer) IndexOption {
 	}
 }
 
-// AliasOption is the option for a FieldIndexer to add a custom JSON path that will also resolve to the same Index part
-func AliasOption(alias string) IndexOption {
-	return func(fieldIndexer *fieldIndexer) {
-		fieldIndexer.alias = &alias
-	}
+// QueryPathComparable defines if two structs can be compared on query path.
+type QueryPathComparable interface {
+	// Equals returns true if the two QueryPathComparable have the same search path.
+	Equals(other QueryPathComparable) bool
+	// QueryPath returns the QueryPath
+	QueryPath() QueryPath
 }
 
 // FieldIndexer is the public interface that defines functions for a field index instruction.
 // A FieldIndexer is used when a document is indexed.
 type FieldIndexer interface {
-	// Name is used for matching against a Query
-	Name() string
-	// Path returns the json path of this fieldIndexer
-	Path() string
+	QueryPathComparable
 	// Tokenize may split up Keys and search terms. For example split a sentence into words.
 	Tokenize(value Scalar) []Scalar
 	// Transform is a function that alters the value to be indexed as well as any search criteria.
@@ -60,11 +58,9 @@ type FieldIndexer interface {
 }
 
 // NewFieldIndexer creates a new fieldIndexer
-// leave the name empty to use the json path as name.
-// the name is to be used as query key when searching
-func NewFieldIndexer(jsonPath string, options ...IndexOption) FieldIndexer {
+func NewFieldIndexer(jsonPath QueryPath, options ...IndexOption) FieldIndexer {
 	fi := fieldIndexer{
-		path: jsonPath,
+		queryPath: jsonPath,
 	}
 	for _, o := range options {
 		o(&fi)
@@ -73,21 +69,17 @@ func NewFieldIndexer(jsonPath string, options ...IndexOption) FieldIndexer {
 }
 
 type fieldIndexer struct {
-	alias       *string
-	path        string
+	queryPath   QueryPath
 	transformer Transform
 	tokenizer   Tokenizer
 }
 
-func (j fieldIndexer) Name() string {
-	if j.alias != nil {
-		return *j.alias
-	}
-	return j.path
+func (j fieldIndexer) Equals(other QueryPathComparable) bool {
+	return j.queryPath.Equals(other.QueryPath())
 }
 
-func (j fieldIndexer) Path() string {
-	return j.path
+func (j fieldIndexer) QueryPath() QueryPath {
+	return j.queryPath
 }
 
 func (j fieldIndexer) Tokenize(scalar Scalar) []Scalar {

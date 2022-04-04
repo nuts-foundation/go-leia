@@ -62,7 +62,7 @@ type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 	return f.collection.db.View(func(tx *bbolt.Tx) error {
-		bucket := tx.Bucket([]byte(f.collection.Name))
+		bucket := tx.Bucket([]byte(f.collection.name))
 		if bucket == nil {
 			// no bucket means no docs
 			return nil
@@ -74,8 +74,8 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		}
 
 		parts := make([]QueryPart, 0)
-		if f.query != nil {
-			parts = f.query.Parts()
+		if f.query.parts != nil {
+			parts = f.query.parts
 		}
 		scanner := resultScanner(parts, walker, f.collection)
 
@@ -98,7 +98,7 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 	// do the IndexScan
 	return i.collection.db.View(func(tx *bbolt.Tx) error {
 		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(i.collection.Name))
+		iBucket := tx.Bucket([]byte(i.collection.name))
 		if iBucket == nil { // nothing added yet
 			return nil
 		}
@@ -122,7 +122,7 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		}
 
 		// nil is not possible since adding an index creates the iBucket
-		iBucket := tx.Bucket([]byte(i.collection.Name))
+		iBucket := tx.Bucket([]byte(i.collection.name))
 
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
 		resultScan := resultScanner(queryParts, walker, i.collection)
@@ -154,11 +154,11 @@ func documentFetcher(documentCollection *bbolt.Bucket, docWalker documentScanFn)
 
 // resultScanner returns a resultScannerFn. For each call it will compare the document against the given queryParts.
 // If conditions are met, it'll call the DocumentWalker
-func resultScanner(queryParts []QueryPart, walker DocumentWalker, collection Collection) documentScanFn {
+func resultScanner(queryParts []QueryPart, walker DocumentWalker, collection *collection) documentScanFn {
 	return func(ref []byte, doc []byte) error {
 	outer:
 		for _, part := range queryParts {
-			keys, err := collection.ValuesAtPath(doc, part.Name())
+			keys, err := collection.ValuesAtPath(doc, part.QueryPath())
 			if err != nil {
 				return err
 			}
