@@ -87,6 +87,7 @@ var jsonLDExample = `
     }
   },
   "@type": "Person",
+  "@id": "123456782",
   "name": "Jane Doe",
   "url": "http://www.janedoe.com",
   "telephone": ["06-12345678"],

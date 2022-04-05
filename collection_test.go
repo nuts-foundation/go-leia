@@ -508,6 +508,17 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 		valueCollector: JSONLDValueCollector,
 	}
 
+	t.Run("ok - find the root identifier", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath())
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "123456782", values[0].value())
+	})
+
 	t.Run("ok - find a single string value", func(t *testing.T) {
 		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/name"))
 
@@ -550,16 +561,6 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 
 		assert.Len(t, values, 1)
 		assert.Equal(t, "http://www.janedoe.com", values[0].value())
-	})
-
-	t.Run("ok - empty for nothing", func(t *testing.T) {
-		values, err := c.ValuesAtPath(document, NewIRIPath())
-
-		if !assert.NoError(t, err) {
-			return
-		}
-
-		assert.Len(t, values, 0)
 	})
 
 	t.Run("ok - empty for incomplete path", func(t *testing.T) {

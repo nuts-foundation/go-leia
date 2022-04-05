@@ -395,10 +395,6 @@ func JSONLDValueCollector(collection *collection, document Document, queryPath Q
 		return nil, ErrInvalidQuery
 	}
 
-	if len(iriPath.iris) == 0 {
-		return []Scalar{}, nil
-	}
-
 	var input interface{}
 	if err := json.Unmarshal(document, &input); err != nil {
 		return nil, err
