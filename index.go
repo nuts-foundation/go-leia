@@ -336,7 +336,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 		condition := true
 
 		// do not go back to prevent infinite loops. The cursor may only go forward.
-		if bytes.Compare(seek, lastCursorPosition) <= 0 {
+		if bytes.Compare(seek, lastCursorPosition) < 0 {
 			continue
 		}
 
