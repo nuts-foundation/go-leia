@@ -78,11 +78,11 @@ var jsonLDExample = `
       "@context": {
         "id": "@id",
         "type": "@type",
-        
         "name": {"@id": "schema:name"},
         "telephone": {"@id": "schema:telephone", "@container": "@list"},
         "url": {"@id": "schema:url", "@type": "@id"},
-        "children": {"@id": "schema:children", "@type": "@id"}
+        "children": {"@id": "schema:children", "@container": "@list"},
+		"parents": {"@id": "schema:parents"}
       }
     }
   },
@@ -90,8 +90,13 @@ var jsonLDExample = `
   "@id": "123456782",
   "name": "Jane Doe",
   "url": "http://www.janedoe.com",
-  "telephone": ["06-12345678"],
+  "telephone": ["06-12345678", "06-87654321"],
   "children": [{
+    "@type": "Person",
+    "name": "John Doe",
+	"url": "http://www.johndoe.org"
+  }],
+  "parents": [{
     "@type": "Person",
     "name": "John Doe",
 	"url": "http://www.johndoe.org"

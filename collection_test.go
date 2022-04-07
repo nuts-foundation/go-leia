@@ -531,6 +531,17 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 	})
 
 	t.Run("ok - find a single nested string value", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/parents", "http://example.com/name"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "John Doe", values[0].value())
+	})
+
+	t.Run("ok - find a single nested string value in a list", func(t *testing.T) {
 		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children", "http://example.com/name"))
 
 		if !assert.NoError(t, err) {
@@ -548,8 +559,9 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 			return
 		}
 
-		assert.Len(t, values, 1)
+		assert.Len(t, values, 2)
 		assert.Equal(t, "06-12345678", values[0].value())
+		assert.Equal(t, "06-87654321", values[1].value())
 	})
 
 	t.Run("ok - find a single id value", func(t *testing.T) {
@@ -561,6 +573,28 @@ func TestCollection_JSONLDValueCollector(t *testing.T) {
 
 		assert.Len(t, values, 1)
 		assert.Equal(t, "http://www.janedoe.com", values[0].value())
+	})
+
+	t.Run("ok - find a nested @type", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/parents", "@type"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "http://example.com/Person", values[0].value())
+	})
+
+	t.Run("ok - find a nested @type in a list", func(t *testing.T) {
+		values, err := c.ValuesAtPath(document, NewIRIPath("http://example.com/children", "@type"))
+
+		if !assert.NoError(t, err) {
+			return
+		}
+
+		assert.Len(t, values, 1)
+		assert.Equal(t, "http://example.com/Person", values[0].value())
 	})
 
 	t.Run("ok - empty for incomplete path", func(t *testing.T) {

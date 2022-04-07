@@ -419,6 +419,12 @@ func valuesFromSliceAtPath(expanded []interface{}, termPath iriPath) []Scalar {
 			result = append(result, valuesFromSliceAtPath(typedSub, termPath)...)
 		case map[string]interface{}:
 			result = append(result, valuesFromMapAtPath(typedSub, termPath)...)
+		case string:
+			result = append(result, MustParseScalar(typedSub))
+		case bool:
+			result = append(result, MustParseScalar(typedSub))
+		case float64:
+			result = append(result, MustParseScalar(typedSub))
 		}
 	}
 
@@ -438,6 +444,11 @@ func valuesFromMapAtPath(expanded map[string]interface{}, termPath iriPath) []Sc
 			castList := list.([]interface{})
 			return valuesFromSliceAtPath(castList, termPath)
 		}
+	}
+
+	if list, ok := expanded["@list"]; ok {
+		castList := list.([]interface{})
+		return valuesFromSliceAtPath(castList, termPath)
 	}
 
 	if value, ok := expanded[termPath.Head()]; ok {
