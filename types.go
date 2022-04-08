@@ -94,6 +94,17 @@ func (fs Float64Scalar) value() interface{} {
 	return float64(fs)
 }
 
+// bytesScalar is used internally for the NotNil query
+type bytesScalar []byte
+
+func (bs bytesScalar) Bytes() []byte {
+	return bs
+}
+
+func (bs bytesScalar) value() interface{} {
+	return bs.Bytes()
+}
+
 // ErrInvalidValue is returned when an invalid value is parsed
 var ErrInvalidValue = errors.New("invalid value")
 

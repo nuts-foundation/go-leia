@@ -128,6 +128,14 @@ func Range(queryPath QueryPath, begin Scalar, end Scalar) QueryPart {
 	}
 }
 
+// NotNil creates a query part where the value must exist.
+// This is done by finding results between byte 0x0 and 0xff
+func NotNil(queryPath QueryPath) QueryPart {
+	return notNilPart{
+		queryPath: queryPath,
+	}
+}
+
 // Prefix creates a query part for a partial match
 // The beginning of a value is matched against the query.
 func Prefix(queryPath QueryPath, value Scalar) QueryPart {
@@ -231,4 +239,24 @@ func (p prefixPart) Condition(key Key, transform Transform) bool {
 	}
 
 	return bytes.HasPrefix(key, transformed.Bytes())
+}
+
+type notNilPart struct {
+	queryPath QueryPath
+}
+
+func (p notNilPart) Equals(other QueryPathComparable) bool {
+	return p.queryPath.Equals(other.QueryPath())
+}
+
+func (p notNilPart) QueryPath() QueryPath {
+	return p.queryPath
+}
+
+func (p notNilPart) Seek() Scalar {
+	return bytesScalar{0x0}
+}
+
+func (p notNilPart) Condition(key Key, _ Transform) bool {
+	return len(key) > 0
 }
