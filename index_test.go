@@ -349,6 +349,23 @@ func TestIndex_Find(t *testing.T) {
 		assert.Equal(t, 1, count)
 	})
 
+	t.Run("ok - not nil", func(t *testing.T) {
+		q := New(NotNil(key))
+		count := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
+				count++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		// it's a triple index where 4 matching trees exist
+		assert.Equal(t, 4, count)
+	})
+
 	t.Run("ok - match through transformer", func(t *testing.T) {
 		q := New(Eq(key, MustParseScalar("VALUE"))).And(
 			Eq(key2, MustParseScalar("value2"))).And(

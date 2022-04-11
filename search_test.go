@@ -191,3 +191,24 @@ func TestTermPath_Equals(t *testing.T) {
 func TestJSONPath_Equals(t *testing.T) {
 	assert.False(t, NewIRIPath().Equals(NewJSONPath(".")))
 }
+
+func TestNotNilPart_Seek(t *testing.T) {
+	assert.Equal(t, []byte{0}, NotNil(testJsonPath).Seek().value())
+}
+
+func TestNotNilPart_Condition(t *testing.T) {
+	assert.True(t, NotNil(testJsonPath).Condition([]byte{0}, nil))
+	assert.False(t, NotNil(testJsonPath).Condition([]byte{}, nil))
+}
+
+func TestNotNilPart_Equals(t *testing.T) {
+	qp := NotNil(testJsonPath)
+
+	t.Run("true", func(t *testing.T) {
+		assert.True(t, qp.Equals(qp))
+	})
+
+	t.Run("false", func(t *testing.T) {
+		assert.False(t, qp.Equals(NotNil(NewJSONPath("a"))))
+	})
+}
