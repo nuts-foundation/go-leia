@@ -254,7 +254,7 @@ func (p notNilPart) QueryPath() QueryPath {
 }
 
 func (p notNilPart) Seek() Scalar {
-	return bytesScalar{0x0}
+	return bytesScalar{}
 }
 
 func (p notNilPart) Condition(key Key, _ Transform) bool {

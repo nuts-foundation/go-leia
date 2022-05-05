@@ -193,7 +193,7 @@ func TestJSONPath_Equals(t *testing.T) {
 }
 
 func TestNotNilPart_Seek(t *testing.T) {
-	assert.Equal(t, []byte{0}, NotNil(testJsonPath).Seek().value())
+	assert.Equal(t, []byte{}, NotNil(testJsonPath).Seek().value())
 }
 
 func TestNotNilPart_Condition(t *testing.T) {
