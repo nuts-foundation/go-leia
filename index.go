@@ -330,17 +330,21 @@ type matcher struct {
 func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) error {
 	var err error
 	cPart := matchers[0].queryPart
-outer:
+	//outer:
 	for _, seekTerm := range matchers[0].terms {
 		// new location in cursor to skip to
 		seek := ComposeKey(sKey, seekTerm.Bytes())
 		condition := true
 
+		// do not go back to prevent infinite loops. The cursor may only go forward.
+		// NotNil is an exception to that
+		_, isNotNil := matchers[0].queryPart.(notNilPart)
+		if bytes.Compare(seek, lastCursorPosition) < 0 && !isNotNil {
+			continue
+		}
+
 		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
-			// do not go back to prevent infinite loops. The cursor may only go forward.
-			if bytes.Compare(cKey, lastCursorPosition) < 0 {
-				continue outer
-			}
+
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
 			if len(sKey) == 0 {
