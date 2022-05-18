@@ -494,7 +494,8 @@ func TestIndex_findR(t *testing.T) {
 		// by passing the value to be found as latest cursor value, it should skip over the results
 		err := db.View(func(tx *bbolt.Tx) error {
 			cursor := testBucket(t, tx).Bucket(i.BucketName()).Cursor()
-			return findR(cursor, []byte{}, matchers, foundFunc, []byte{})
+			_, err := findR(cursor, []byte{}, matchers, foundFunc, []byte{})
+			return err
 		})
 
 		assert.NoError(t, err)
@@ -507,7 +508,8 @@ func TestIndex_findR(t *testing.T) {
 		// by passing the value to be found as latest cursor value, it should skip over the results
 		err := db.View(func(tx *bbolt.Tx) error {
 			cursor := testBucket(t, tx).Bucket(i.BucketName()).Cursor()
-			return findR(cursor, []byte{}, matchers, foundFunc, []byte("valuf"))
+			_, err := findR(cursor, []byte{}, matchers, foundFunc, []byte("valuf"))
+			return err
 		})
 
 		assert.NoError(t, err)

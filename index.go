@@ -277,7 +277,8 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	// extract tokenizer and transform to here
 	matchers := i.matchers(sortedQueryParts)
 
-	return findR(cBucket.Cursor(), Key{}, matchers, fn, []byte{})
+	_, err = findR(cBucket.Cursor(), Key{}, matchers, fn, []byte{})
+	return err
 }
 
 func (i *index) matchers(sortedQueryParts []QueryPart) []matcher {
@@ -327,8 +328,9 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) error {
+func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) ([]byte, error) {
 	var err error
+	returnKey := lastCursorPosition
 	cPart := matchers[0].queryPart
 	//outer:
 	for _, seekTerm := range matchers[0].terms {
@@ -337,14 +339,11 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 		condition := true
 
 		// do not go back to prevent infinite loops. The cursor may only go forward.
-		// NotNil is an exception to that
-		_, isNotNil := matchers[0].queryPart.(notNilPart)
-		if bytes.Compare(seek, lastCursorPosition) < 0 && !isNotNil {
-			continue
+		if bytes.Compare(seek, lastCursorPosition) < 0 {
+			seek = lastCursorPosition
 		}
 
-		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; cKey, _ = cursor.Next() {
-
+		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; {
 			// remove prefix (+1), Split and take first
 			pf := cKey[len(sKey)+1:]
 			if len(sKey) == 0 {
@@ -359,18 +358,28 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 				if len(matchers) > 1 {
 					// (partial) key still matches, continue to next index part
 					nKey := ComposeKey(sKey, newp)
-					err = findR(cursor, nKey, matchers[1:], fn, cKey)
+					// on success the cursor is moved forward, the latest key is returned, continue with that key
+					// if keys haven't changed: break
+					var subKey []byte
+					subKey, err = findR(cursor, nKey, matchers[1:], fn, cKey)
+					if bytes.Compare(subKey, cKey) == 0 {
+						break
+					}
+					cKey = subKey
 				} else {
 					// all index parts applied to key construction, retrieve results.
 					err = iterateOverDocuments(cursor, cKey, fn)
+					// this position was a success, hopefully the next as well
+					cKey, _ = cursor.Next()
 				}
 				if err != nil {
-					return err
+					return nil, err
 				}
 			}
+			returnKey = cKey
 		}
 	}
-	return nil
+	return returnKey, nil
 }
 
 func iterateOverDocuments(cursor *bbolt.Cursor, cKey []byte, fn iteratorFn) error {
