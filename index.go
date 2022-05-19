@@ -362,7 +362,7 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 					// if keys haven't changed: break
 					var subKey []byte
 					subKey, err = findR(cursor, nKey, matchers[1:], fn, cKey)
-					if bytes.Compare(subKey, cKey) == 0 {
+					if bytes.Equal(subKey, cKey) {
 						break
 					}
 					cKey = subKey
