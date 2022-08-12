@@ -21,7 +21,6 @@ package leia
 
 import (
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"math"
 )
@@ -38,18 +37,18 @@ var ErrInvalidJSON = errors.New("invalid json")
 // ErrInvalidQuery is returned when a collection is queried with the wrong type
 var ErrInvalidQuery = errors.New("invalid query type")
 
-// Reference equals a document hash. In an index, the values are references to docs.
-type Reference []byte
-
-// EncodeToString encodes the reference as hex encoded string
-func (r Reference) EncodeToString() string {
-	return hex.EncodeToString(r)
-}
-
-// ByteSize returns the size of the reference, eg: 32 bytes for a sha256
-func (r Reference) ByteSize() int {
-	return len(r)
-}
+//// Reference equals a document hash. In an index, the values are references to docs.
+//type Reference []byte
+//
+//// EncodeToString encodes the reference as hex encoded string
+//func (r Reference) EncodeToString() string {
+//	return hex.EncodeToString(r)
+//}
+//
+//// ByteSize returns the size of the reference, eg: 32 bytes for a sha256
+//func (r Reference) ByteSize() int {
+//	return len(r)
+//}
 
 // Scalar represents a JSON or JSON-LD scalar (string, number, true or false)
 type Scalar interface {

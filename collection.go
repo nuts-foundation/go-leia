@@ -25,7 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-
+	"github.com/nuts-foundation/go-stoabs"
 	"github.com/piprate/json-gold/ld"
 	"github.com/tidwall/gjson"
 	"go.etcd.io/bbolt"
@@ -35,11 +35,25 @@ import (
 var ErrNoIndex = errors.New("no index found")
 
 // DocumentWalker defines a function that is used as a callback for matching documents.
-// The key will be the document Reference (hash) and the value will be the raw document bytes
-type DocumentWalker func(key Reference, value []byte) error
+// The key will be the document stoabs.Key (hash) and the value will be the raw document bytes
+type DocumentWalker func(key stoabs.Key, value []byte) error
 
 // documentCollection is the bucket that stores all the documents for a collection
 const documentCollection = "_documents"
+
+type bucket string
+
+func (b bucket) shelf() string {
+	return string(b)
+}
+
+func (b bucket) child(name string) bucket {
+	return bucket(string(b) + "." + name)
+}
+
+func (b bucket) childBytes(name []byte) bucket {
+	return bucket(string(b) + "." + string(name))
+}
 
 func documentCollectionByteRef() []byte {
 	return []byte(documentCollection)
@@ -58,7 +72,7 @@ type Collection interface {
 	// Add a set of documents to this collection
 	Add(jsonSet []Document) error
 	// Get returns the data for the given key or nil if not found
-	Get(ref Reference) (Document, error)
+	Get(ref stoabs.Key) (Document, error)
 	// Delete a document
 	Delete(doc Document) error
 	// Find queries the collection for documents
@@ -67,7 +81,7 @@ type Collection interface {
 	// passing ctx prevents adding too many records to the result set.
 	Find(ctx context.Context, query Query) ([]Document, error)
 	// Reference uses the configured reference function to generate a reference of the function
-	Reference(doc Document) Reference
+	Reference(doc Document) stoabs.Key
 	// Iterate over documents that match the given query
 	Iterate(query Query, walker DocumentWalker) error
 	// IndexIterate is used for iterating over indexed values. The query keys must match exactly with all the FieldIndexer.Name() of an index
@@ -81,20 +95,20 @@ type Collection interface {
 // references are the key under which a document is stored.
 // a ReferenceFunc could be the sha256 func or something that stores document in chronological order.
 // The first would be best for random access, the latter for chronological access
-type ReferenceFunc func(doc Document) Reference
+type ReferenceFunc func(doc Document) stoabs.Key
 
 // default for shasum docs
-func defaultReferenceCreator(doc Document) Reference {
+func defaultReferenceCreator(doc Document) stoabs.Key {
 	s := sha1.Sum(doc)
 	var b = make([]byte, len(s))
 	copy(b, s[:])
 
-	return b
+	return stoabs.BytesKey(b)
 }
 
 type collection struct {
 	name           string
-	db             *bbolt.DB
+	db             stoabs.KVStore
 	indexList      []Index
 	refMake        ReferenceFunc
 	documentLoader ld.DocumentLoader
@@ -117,35 +131,32 @@ func (c *collection) AddIndex(indexes ...Index) error {
 			}
 		}
 
-		if err := c.db.Update(func(tx *bbolt.Tx) error {
-			bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
-			if err != nil {
+		indexBucket := bucket(c.name).childBytes(index.BucketName())
+		documentBucket := bucket(c.name).child(documentCollection)
+
+		err := c.db.Write(context.Background(), func(tx stoabs.WriteTx) error {
+			// If index exists, skip
+			var exists bool
+			err := tx.GetShelfReader(indexBucket.shelf()).
+				Iterate(func(key stoabs.Key, value []byte) error {
+					exists = true
+					return errors.New("stop")
+				}, stoabs.BytesKey{})
+			if err.Error() != "stop" || exists {
 				return err
 			}
 
-			// skip existing
-			if b := bucket.Bucket(index.BucketName()); b != nil {
-				return nil
-			}
+			err = tx.GetShelfReader(documentBucket.shelf()).Iterate(func(ref stoabs.Key, doc []byte) error {
+				return index.Add(bucket(c.name), ref, doc)
+			}, stoabs.BytesKey{})
 
-			gBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
-			if err != nil {
-				return err
-			}
-
-			cur := gBucket.Cursor()
-			for ref, doc := cur.First(); ref != nil; ref, doc = cur.Next() {
-				index.Add(bucket, ref, doc)
-			}
-
-			return nil
-		}); err != nil {
+			return err
+		})
+		if err != nil {
 			return err
 		}
-
 		c.indexList = append(c.indexList, index)
 	}
-
 	return nil
 }
 
@@ -171,28 +182,28 @@ func (c *collection) DropIndex(name string) error {
 	})
 }
 
-func (c *collection) Reference(doc Document) Reference {
+func (c *collection) Reference(doc Document) stoabs.Key {
 	return c.refMake(doc)
 }
 
 // Add a json document set to the store
 // this uses a single transaction per set.
 func (c *collection) Add(jsonSet []Document) error {
-	return c.db.Update(func(tx *bbolt.Tx) error {
+	return c.db.Write(context.Background(), func(tx stoabs.WriteTx) error {
 		return c.add(tx, jsonSet)
 	})
 }
 
-func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
-	bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
-	if err != nil {
-		return err
-	}
-
-	docBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
-	if err != nil {
-		return err
-	}
+func (c *collection) add(tx stoabs.WriteTx, jsonSet []Document) error {
+	//bucket, err := tx.CreateBucketIfNotExists([]byte(c.name))
+	//if err != nil {
+	//	return err
+	//}
+	//
+	//docBucket, err := bucket.CreateBucketIfNotExists(documentCollectionByteRef())
+	//if err != nil {
+	//	return err
+	//}
 
 	for _, doc := range jsonSet {
 		ref := c.refMake(doc)
@@ -200,13 +211,17 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 		// indices
 		// buckets are cached within tx
 		for _, i := range c.indexList {
-			err = i.Add(bucket, ref, doc)
+			err := i.Add(tx, bucket(c.name), ref, doc)
 			if err != nil {
 				return err
 			}
 		}
 
-		err = docBucket.Put(ref, doc)
+		writer, err := tx.GetShelfWriter(bucket(c.name).child(documentCollection).shelf())
+		if err != nil {
+			return err
+		}
+		err = writer.Put(ref, doc)
 		if err != nil {
 			return err
 		}
@@ -217,7 +232,7 @@ func (c *collection) add(tx *bbolt.Tx, jsonSet []Document) error {
 
 func (c *collection) Find(ctx context.Context, query Query) ([]Document, error) {
 	docs := make([]Document, 0)
-	walker := func(key Reference, value []byte) error {
+	walker := func(key stoabs.Key, value []byte) error {
 		// stop iteration when needed
 		if err := ctx.Err(); err != nil {
 			return err
@@ -267,31 +282,28 @@ func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 // Delete a document from the store, this also removes the entries from indices
 func (c *collection) Delete(doc Document) error {
 	// find matching indices and remove hash from that index
-	return c.db.Update(func(tx *bbolt.Tx) error {
+	return c.db.Write(context.Background(), func(tx stoabs.WriteTx) error {
 		return c.delete(tx, doc)
 	})
 }
 
-func (c *collection) delete(tx *bbolt.Tx, doc Document) error {
-	bucket := tx.Bucket([]byte(c.name))
-	if bucket == nil {
-		return nil
-	}
-
+func (c *collection) delete(tx stoabs.WriteTx, doc Document) error {
+	bucket := bucket(c.name)
 	ref := c.refMake(doc)
 
-	docBucket := c.documentBucket(tx)
-	if docBucket == nil {
-		return nil
+	// Remove document
+	docWriter, err := tx.GetShelfWriter(bucket.child(documentCollection).shelf())
+	if err != nil {
+		return err
 	}
-	err := docBucket.Delete(ref)
+	err = docWriter.Delete(ref)
 	if err != nil {
 		return err
 	}
 
-	// indices
+	// Remove indices
 	for _, i := range c.indexList {
-		err = i.Delete(bucket, ref, doc)
+		err = i.Delete(tx, bucket, ref, doc)
 		if err != nil {
 			return err
 		}
@@ -340,18 +352,13 @@ func (c *collection) findIndex(query Query) Index {
 	return cIndex
 }
 
-func (c *collection) Get(key Reference) (Document, error) {
+func (c *collection) Get(key stoabs.Key) (Document, error) {
 	var err error
 	var data []byte
 
-	err = c.db.View(func(tx *bbolt.Tx) error {
-		bucket := c.documentBucket(tx)
-		if bucket == nil {
-			return nil
-		}
-
-		data = bucket.Get(key)
-		return nil
+	err = c.db.ReadShelf(context.Background(), bucket(c.name).child(documentCollection).shelf(), func(reader stoabs.Reader) error {
+		data, err = reader.Get(key)
+		return err
 	})
 
 	if data == nil {

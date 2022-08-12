@@ -22,6 +22,7 @@ package leia
 import (
 	"bytes"
 	"errors"
+	"github.com/nuts-foundation/go-stoabs"
 
 	"go.etcd.io/bbolt"
 )
@@ -33,15 +34,15 @@ type Index interface {
 	Name() string
 	// Add indexes the document. It uses a sub-bucket of the given bucket.
 	// It will only be indexed if the complete index matches.
-	Add(bucket *bbolt.Bucket, ref Reference, doc Document) error
+	Add(tx stoabs.WriteTx, bucket bucket, ref stoabs.Key, doc Document) error
 	// Delete document from the index
-	Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error
+	Delete(tx stoabs.WriteTx, bucket bucket, ref stoabs.Key, doc Document) error
 	// IsMatch determines if this index can be used for the given query. The higher the return value, the more likely it is useful.
 	// return values lie between 0.0 and 1.0, where 1.0 is the most useful.
 	IsMatch(query Query) float64
 	// Iterate over the key/value pairs given a query. Entries that match the query are passed to the iteratorFn.
 	// it will not filter out double values
-	Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error
+	Iterate(bucket bucket, query Query, fn iteratorFn) error
 	// BucketName returns the bucket path for this index
 	BucketName() []byte
 	// Sort the query so its parts align with the index parts.
@@ -77,13 +78,12 @@ func (i *index) Depth() int {
 	return len(i.indexParts)
 }
 
-func (i *index) Add(bucket *bbolt.Bucket, ref Reference, doc Document) error {
-	cBucket, _ := bucket.CreateBucketIfNotExists(i.BucketName())
-	return i.addDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
+func (i *index) Add(tx stoabs.WriteTx, bucket bucket, ref stoabs.Key, doc Document) error {
+	return i.addDocumentR(tx, bucket.childBytes(i.BucketName()), i.indexParts, stoabs.BytesKey{}, ref, doc)
 }
 
 // addDocumentR, like Add but recursive
-func (i *index) addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
+func (i *index) addDocumentR(tx stoabs.WriteTx, bucket bucket, parts []FieldIndexer, cKey stoabs.BytesKey, ref stoabs.Key, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -97,11 +97,11 @@ func (i *index) addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Ke
 		// all matches to be added to current bucket
 		for _, m := range matches {
 			key := ComposeKey(cKey, m.Bytes())
-			_ = addRefToBucket(bucket, key, ref)
+			_ = addRefToBucket(tx, bucket, key, ref)
 		}
 		if len(matches) == 0 {
 			key := ComposeKey(cKey, []byte{})
-			_ = addRefToBucket(bucket, key, ref)
+			_ = addRefToBucket(tx, bucket, key, ref)
 		}
 		return nil
 	}
@@ -109,7 +109,7 @@ func (i *index) addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Ke
 	// continue recursion
 	for _, m := range matches {
 		nKey := ComposeKey(cKey, m.Bytes())
-		if err = i.addDocumentR(bucket, parts[1:], nKey, ref, doc); err != nil {
+		if err = i.addDocumentR(tx, bucket, parts[1:], nKey, ref, doc); err != nil {
 			return err
 		}
 	}
@@ -118,14 +118,14 @@ func (i *index) addDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Ke
 	// add key with an empty byte slice as value
 	if len(matches) == 0 {
 		nKey := ComposeKey(cKey, []byte{})
-		return i.addDocumentR(bucket, parts[1:], nKey, ref, doc)
+		return i.addDocumentR(tx, bucket, parts[1:], nKey, ref, doc)
 	}
 
 	return nil
 }
 
 // removeDocumentR, like Delete but recursive
-func (i *index) removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey Key, ref Reference, doc Document) error {
+func (i *index) removeDocumentR(tx stoabs.WriteTx, bucket bucket, parts []FieldIndexer, cKey stoabs.BytesKey, ref stoabs.Key, doc Document) error {
 	// current part
 	ip := parts[0]
 
@@ -138,7 +138,7 @@ func (i *index) removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey
 	if len(parts) == 1 {
 		for _, m := range matches {
 			key := ComposeKey(cKey, m.Bytes())
-			_ = removeRefFromBucket(bucket, key, ref)
+			_ = removeRefFromBucket(tx, bucket, key, ref)
 		}
 		return nil
 	}
@@ -146,40 +146,33 @@ func (i *index) removeDocumentR(bucket *bbolt.Bucket, parts []FieldIndexer, cKey
 	// continue recursion
 	for _, m := range matches {
 		nKey := ComposeKey(cKey, m.Bytes())
-		return i.removeDocumentR(bucket, parts[1:], nKey, ref, doc)
+		return i.removeDocumentR(tx, bucket, parts[1:], nKey, ref, doc)
 	}
 
 	// no matches for the document and this part of the index
 	return nil
 }
 
-func (i *index) Delete(bucket *bbolt.Bucket, ref Reference, doc Document) error {
-	cBucket := bucket.Bucket(i.BucketName())
-	if cBucket == nil {
-		return nil
-	}
-
-	return i.removeDocumentR(cBucket, i.indexParts, Key{}, ref, doc)
+func (i *index) Delete(tx stoabs.WriteTx, bucket bucket, ref stoabs.Key, doc Document) error {
+	return i.removeDocumentR(tx, bucket.childBytes(i.BucketName()), i.indexParts, stoabs.BytesKey{}, ref, doc)
 }
 
 // addRefToBucket adds the reference to the correct key in the bucket. It handles multiple reference on the same location
-func addRefToBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
-	// first check if there's a sub-bucket
-	subBucket, err := bucket.CreateBucketIfNotExists(key)
+func addRefToBucket(tx stoabs.WriteTx, bucket bucket, key stoabs.BytesKey, ref stoabs.Key) error {
+	writer, err := tx.GetShelfWriter(bucket.childBytes(key).shelf())
 	if err != nil {
 		return err
 	}
-	return subBucket.Put(ref, []byte{})
+	return writer.Put(ref, []byte{})
 }
 
 // removeRefFromBucket removes the reference from the bucket. It handles multiple reference on the same location
-func removeRefFromBucket(bucket *bbolt.Bucket, key Key, ref Reference) error {
-	// first check if there's a sub-bucket
-	subBucket := bucket.Bucket(key)
-	if subBucket == nil {
-		return nil
+func removeRefFromBucket(tx stoabs.WriteTx, bucket bucket, key stoabs.BytesKey, ref stoabs.Key) error {
+	writer, err := tx.GetShelfWriter(bucket.childBytes(key).shelf())
+	if err != nil {
+		return err
 	}
-	return subBucket.Delete(ref)
+	return writer.Delete(ref)
 }
 
 func (i *index) IsMatch(query Query) float64 {
@@ -328,7 +321,7 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) ([]byte, error) {
+func findR(tx stoabs.ReadTx, bucket bucket, sKey stoabs.BytesKey, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) ([]byte, error) {
 	var err error
 	returnKey := lastCursorPosition
 	cPart := matchers[0].queryPart
@@ -342,6 +335,10 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 		if bytes.Compare(seek, lastCursorPosition) < 0 {
 			seek = lastCursorPosition
 		}
+
+		tx.GetShelfReader(bucket.shelf()).Range(func(key stoabs.Key, value []byte) error {
+
+		})
 
 		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; {
 			// remove prefix (+1), Split and take first
@@ -382,15 +379,9 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 	return returnKey, nil
 }
 
-func iterateOverDocuments(cursor *bbolt.Cursor, cKey []byte, fn iteratorFn) error {
-	subBucket := cursor.Bucket().Bucket(cKey)
-	if subBucket != nil {
-		subCursor := subBucket.Cursor()
-		for k, _ := subCursor.Seek([]byte{}); k != nil; k, _ = subCursor.Next() {
-			if err := fn(cKey, k); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
+func iterateOverDocuments(tx stoabs.ReadTx, bucket bucket, cKey []byte, fn iteratorFn) error {
+	reader := tx.GetShelfReader(bucket.childBytes(cKey).shelf())
+	return reader.Iterate(func(key stoabs.Key, value []byte) error {
+		return fn(key, value)
+	}, stoabs.BytesKey{})
 }

@@ -19,36 +19,31 @@
 
 package leia
 
-import "bytes"
-
-// Key is used as DB key type
-type Key []byte
+import (
+	"bytes"
+	"github.com/nuts-foundation/go-stoabs"
+)
 
 // KeyOf creates a key from an interface
-func KeyOf(value interface{}) Key {
+func KeyOf(value interface{}) stoabs.BytesKey {
 	switch val := value.(type) {
 	case string:
 		return []byte(val)
 	case []byte:
 		return val
-	case Key:
+	case stoabs.BytesKey:
 		return val
 	}
 	return nil
 }
 
-// String returns the string representation, only useful if a Key represents readable bytes
-func (k Key) String() string {
-	return string(k)
-}
-
 // ComposeKey creates a new key from two keys
-func ComposeKey(current Key, additional Key) Key {
+func ComposeKey(current stoabs.BytesKey, additional stoabs.BytesKey) stoabs.BytesKey {
 	if len(current) == 0 {
-		return additional
+		return additional.Bytes()
 	}
 
-	c := current.Split()
+	c := Split(current)
 	b := make([][]byte, len(c))
 	for i, k := range c {
 		b[i] = k
@@ -59,9 +54,9 @@ func ComposeKey(current Key, additional Key) Key {
 }
 
 // Split splits a compound key into parts
-func (k Key) Split() []Key {
-	s := bytes.Split(k, []byte{KeyDelimiter})
-	var nk = make([]Key, len(s))
+func Split(key stoabs.BytesKey) []stoabs.BytesKey {
+	s := bytes.Split(key, []byte{KeyDelimiter})
+	var nk = make([]stoabs.BytesKey, len(s))
 
 	for i, si := range s {
 		nk[i] = si
