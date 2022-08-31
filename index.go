@@ -363,7 +363,10 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 					var subKey []byte
 					subKey, err = findR(cursor, nKey, matchers[1:], fn, cKey)
 					if bytes.Equal(subKey, cKey) {
-						break
+						// the nested search could not advance the cursor, so we do it here before continuing the loop
+						cKey, _ = cursor.Next()
+						returnKey = cKey
+						continue
 					}
 					cKey = subKey
 				} else {

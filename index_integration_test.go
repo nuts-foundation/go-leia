@@ -40,10 +40,17 @@ var doc2 = []byte(`
 }
 `)
 
+var doc3 = []byte(`
+{
+	"key1": "0"
+}
+`)
+
 // TestIndex_CursorDynamics contains a set of tests to see if all relevant documents are returned
 func TestIndex_CursorDynamics(t *testing.T) {
 	ref1 := defaultReferenceCreator(doc1)
 	ref2 := defaultReferenceCreator(doc2)
+	ref3 := defaultReferenceCreator(doc3)
 	key1 := NewJSONPath("key1")
 	key2 := NewJSONPath("key2")
 	db, c := testCollection(t)
@@ -56,7 +63,8 @@ func TestIndex_CursorDynamics(t *testing.T) {
 	_ = db.Update(func(tx *bbolt.Tx) error {
 		b := testBucket(t, tx)
 		_ = i.Add(b, ref1, doc1)
-		return i.Add(b, ref2, doc2)
+		_ = i.Add(b, ref2, doc2)
+		return i.Add(b, ref3, doc3)
 	})
 
 	t.Run("2 docs found on single prefix key", func(t *testing.T) {
@@ -77,6 +85,24 @@ func TestIndex_CursorDynamics(t *testing.T) {
 
 	t.Run("2 docs found on prefix key and notNil", func(t *testing.T) {
 		q := New(Prefix(key1, MustParseScalar("1"))).And(NotNil(key2))
+		found := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
+				found++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, found)
+	})
+
+	t.Run("2 docs found on empty prefix key and notNil", func(t *testing.T) {
+		// the first hit for the cursor on the empty prefix is a hit where the second matcher fails (notNil)
+		// A bug prevented continuing evaluation by breaking instead of advancing the cursor and continuing
+		q := New(Prefix(key1, MustParseScalar(""))).And(NotNil(key2))
 		found := 0
 
 		err := db.View(func(tx *bbolt.Tx) error {
