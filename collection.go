@@ -75,6 +75,8 @@ type Collection interface {
 	IndexIterate(query Query, fn ReferenceScanFn) error
 	// ValuesAtPath returns a slice with the values found by the configured valueCollector
 	ValuesAtPath(document Document, queryPath QueryPath) ([]Scalar, error)
+	// DocumentCount returns the number of indexed documents
+	DocumentCount() (int, error)
 }
 
 // ReferenceFunc is the func type used for creating references.
@@ -359,6 +361,20 @@ func (c *collection) Get(key Reference) (Document, error) {
 	}
 
 	return data, err
+}
+
+func (c *collection) DocumentCount() (int, error) {
+	var count int
+	err := c.db.View(func(tx *bbolt.Tx) error {
+		bucket := c.documentBucket(tx)
+		if bucket == nil {
+			return nil
+		}
+
+		count = bucket.Stats().KeyN
+		return nil
+	})
+	return count, err
 }
 
 func (c *collection) documentBucket(tx *bbolt.Tx) *bbolt.Bucket {
