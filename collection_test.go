@@ -401,6 +401,33 @@ func TestCollection_Get(t *testing.T) {
 	})
 }
 
+func TestCollection_DocumentCount(t *testing.T) {
+	t.Run("ok - 1 entry", func(t *testing.T) {
+		_, c := testCollection(t)
+		if err := c.Add([]Document{exampleDoc}); err != nil {
+			t.Fatal(err)
+		}
+
+		count, err := c.DocumentCount()
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, 1, count)
+	})
+
+	t.Run("ok - empty", func(t *testing.T) {
+		_, c := testCollection(t)
+
+		count, err := c.DocumentCount()
+
+		if !assert.NoError(t, err) {
+			return
+		}
+		assert.Equal(t, 0, count)
+	})
+}
+
 func TestCollection_JSONPathValueCollector(t *testing.T) {
 	json := []byte(`
 {
