@@ -29,6 +29,7 @@ import (
 )
 
 var valueAsScalar = MustParseScalar("value")
+var valueAsScalar2 = MustParseScalar("value2")
 
 func TestNewIndex(t *testing.T) {
 	_, c := testCollection(t)
@@ -549,20 +550,19 @@ func TestIndex_addRefToBucket(t *testing.T) {
 	})
 }
 
-func TestIndex_Sort(t *testing.T) {
+func TestIndex_matchingParts(t *testing.T) {
 	_, c := testCollection(t)
 	key := NewJSONPath("path.part")
 	key2 := NewJSONPath("path.more.#.parts")
-	key3 := NewJSONPath("key3")
 	i := c.NewIndex(t.Name(),
 		NewFieldIndexer(key),
 		NewFieldIndexer(key2),
-	)
+	).(*index)
 
 	t.Run("returns correct order when given in reverse", func(t *testing.T) {
-		sorted := i.Sort(
+		sorted := i.matchingParts(
 			New(Eq(key2, valueAsScalar)).
-				And(Eq(key, valueAsScalar)), false)
+				And(Eq(key, valueAsScalar)))
 
 		if !assert.Len(t, sorted, 2) {
 			return
@@ -572,9 +572,9 @@ func TestIndex_Sort(t *testing.T) {
 	})
 
 	t.Run("returns correct order when given in correct order", func(t *testing.T) {
-		sorted := i.Sort(
+		sorted := i.matchingParts(
 			New(Eq(key, valueAsScalar)).
-				And(Eq(key2, valueAsScalar)), false)
+				And(Eq(key2, valueAsScalar)))
 
 		if !assert.Len(t, sorted, 2) {
 			return
@@ -584,34 +584,21 @@ func TestIndex_Sort(t *testing.T) {
 	})
 
 	t.Run("does not include any keys when primary key is missing", func(t *testing.T) {
-		sorted := i.Sort(
-			New(Eq(key2, valueAsScalar)), false)
+		sorted := i.matchingParts(
+			New(Eq(key2, valueAsScalar)))
 
 		assert.Len(t, sorted, 0)
 	})
 
-	t.Run("includes all keys when includeMissing option is given", func(t *testing.T) {
-		sorted := i.Sort(
-			New(Eq(key3, valueAsScalar)).
-				And(Eq(key2, valueAsScalar)), true)
+	t.Run("returns first key when duplicate keys are given for index", func(t *testing.T) {
+		sorted := i.matchingParts(
+			New(Eq(key, valueAsScalar)).
+				And(Eq(key, valueAsScalar2)))
 
-		if !assert.Len(t, sorted, 2) {
+		if !assert.Len(t, sorted, 1) {
 			return
 		}
-		assert.Equal(t, key3, sorted[0].QueryPath())
-		assert.Equal(t, key2, sorted[1].QueryPath())
-	})
-
-	t.Run("includes additional keys when includeMissing option is given", func(t *testing.T) {
-		sorted := i.Sort(
-			New(Eq(key3, valueAsScalar)).
-				And(Eq(key, valueAsScalar)), true)
-
-		if !assert.Len(t, sorted, 2) {
-			return
-		}
-		assert.Equal(t, key, sorted[0].QueryPath())
-		assert.Equal(t, key3, sorted[1].QueryPath())
+		assert.True(t, sorted[0].Condition(Key("value"), nil))
 	})
 }
 
@@ -624,7 +611,7 @@ func TestIndex_QueryPartsOutsideIndex(t *testing.T) {
 	i := c.NewIndex(t.Name(),
 		NewFieldIndexer(key),
 		NewFieldIndexer(key2),
-	)
+	).(*index)
 
 	t.Run("returns empty list when all parts in index", func(t *testing.T) {
 		additional := i.QueryPartsOutsideIndex(
@@ -650,6 +637,32 @@ func TestIndex_QueryPartsOutsideIndex(t *testing.T) {
 			return
 		}
 		assert.Equal(t, key3, additional[0].QueryPath())
+	})
+
+	t.Run("returns param if duplicate and is index hit", func(t *testing.T) {
+		additional := i.QueryPartsOutsideIndex(
+			New(Eq(key, valueAsScalar)).
+				And(Eq(key, valueAsScalar)))
+
+		if !assert.Len(t, additional, 1) {
+			return
+		}
+		assert.Equal(t, key, additional[0].QueryPath())
+	})
+
+	t.Run("returns all duplicates", func(t *testing.T) {
+		additional := i.QueryPartsOutsideIndex(
+			New(Eq(key, valueAsScalar)).
+				And(Eq(key, valueAsScalar)).
+				And(Eq(key3, valueAsScalar)).
+				And(Eq(key3, valueAsScalar)))
+
+		if !assert.Len(t, additional, 3) {
+			return
+		}
+		assert.Equal(t, key, additional[0].QueryPath())
+		assert.Equal(t, key3, additional[1].QueryPath())
+		assert.Equal(t, key3, additional[2].QueryPath())
 	})
 }
 
