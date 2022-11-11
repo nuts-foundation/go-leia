@@ -83,6 +83,23 @@ func TestIndex_CursorDynamics(t *testing.T) {
 		assert.Equal(t, 2, found)
 	})
 
+	t.Run("2 docs found on single prefix key using duplicate key", func(t *testing.T) {
+		q := New(Prefix(key1, MustParseScalar("1"))).And(
+			Prefix(key1, MustParseScalar("1")))
+		found := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
+				found++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, found)
+	})
+
 	t.Run("2 docs found on prefix key and notNil", func(t *testing.T) {
 		q := New(Prefix(key1, MustParseScalar("1"))).And(NotNil(key2))
 		found := 0
