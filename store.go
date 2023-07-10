@@ -27,10 +27,13 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// CollectionType defines if a Collection is a JSON collection or JSONLD collection.
 type CollectionType int
 
 const (
+	// JSONCollection defines a collection uses JSON search paths to index documents
 	JSONCollection CollectionType = iota
+	// JSONLDCollection defines a collection uses JSON-LD IRI search paths to index documents
 	JSONLDCollection
 )
 
