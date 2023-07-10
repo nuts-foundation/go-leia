@@ -27,14 +27,18 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+type CollectionType int
+
+const (
+	JSONCollection CollectionType = iota
+	JSONLDCollection
+)
+
 // Store is the main interface for storing/finding documents
 type Store interface {
-	// JSONCollection creates or returns a JSON Collection.
+	// Collection creates or returns a Collection of the specified type.
 	// On the db level it's a bucket for the documents and 1 bucket per index.
-	JSONCollection(name string) Collection
-	// JSONLDCollection creates or returns a JSON-LD Collection.
-	// On the db level it's a bucket for the documents and 1 bucket per index.
-	JSONLDCollection(name string) Collection
+	Collection(collectionType CollectionType, name string) Collection
 	// Close the bbolt DB
 	Close() error
 }
@@ -42,7 +46,7 @@ type Store interface {
 // Store holds a reference to the bbolt data file and all collections.
 type store struct {
 	db             *bbolt.DB
-	collections    map[string]Collection
+	collections    map[string]*collection
 	documentLoader ld.DocumentLoader
 	// options is used during configuration
 	options bbolt.Options
@@ -77,7 +81,7 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 	// store with defaults
 	st := &store{
 		options:        *bbolt.DefaultOptions,
-		collections:    map[string]Collection{},
+		collections:    map[string]*collection{},
 		documentLoader: ld.NewDefaultDocumentLoader(nil),
 	}
 
@@ -94,37 +98,33 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 	return st, nil
 }
 
-func (s *store) JSONCollection(name string) Collection {
+func (s *store) Collection(collectionType CollectionType, name string) Collection {
 	c, ok := s.collections[name]
 	if !ok {
-		c = &collection{
-			name:           name,
-			db:             s.db,
-			refMake:        defaultReferenceCreator,
-			valueCollector: JSONPathValueCollector,
+		var vCollector valueCollector
+		switch collectionType {
+		case JSONCollection:
+			vCollector = JSONPathValueCollector
+		case JSONLDCollection:
+			vCollector = JSONLDValueCollector
+		default:
+			panic("unknown collection type")
 		}
-		s.collections[name] = c
-	}
-
-	return c
-}
-
-func (s *store) JSONLDCollection(name string) Collection {
-	c, ok := s.collections[name]
-	if !ok {
 		c = &collection{
 			name:           name,
+			collectionType: collectionType,
 			db:             s.db,
-			refMake:        defaultReferenceCreator,
 			documentLoader: s.documentLoader,
-			valueCollector: JSONLDValueCollector,
+			refMake:        defaultReferenceCreator,
+			valueCollector: vCollector,
 		}
 		s.collections[name] = c
+	} else if c.collectionType != collectionType {
+		panic("collection already exists with different type")
 	}
 
 	return c
 }
-
 func (s *store) Close() error {
 	if s.db != nil {
 		return s.db.Close()

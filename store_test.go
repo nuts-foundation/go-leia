@@ -50,7 +50,7 @@ func TestStore_JSONCollection(t *testing.T) {
 	f := filepath.Join(testDirectory(t), "test.db")
 	s, _ := NewStore(f, WithoutSync())
 
-	c := s.JSONCollection("test")
+	c := s.Collection(JSONCollection, "test")
 
 	if !assert.NotNil(t, c) {
 		return
@@ -67,7 +67,7 @@ func TestStore_JSONLDCollection(t *testing.T) {
 		f := filepath.Join(testDirectory(t), "test.db")
 		s, _ := NewStore(f, WithoutSync())
 
-		c := s.JSONLDCollection("test")
+		c := s.Collection(JSONLDCollection, "test")
 
 		if !assert.NotNil(t, c) {
 			return
@@ -84,7 +84,7 @@ func TestStore_JSONLDCollection(t *testing.T) {
 		f := filepath.Join(testDirectory(t), "test.db")
 		s, _ := NewStore(f, WithoutSync(), WithDocumentLoader(testDocumentLoader{}))
 
-		c := s.JSONLDCollection("test")
+		c := s.Collection(JSONLDCollection, "test")
 
 		if !assert.NotNil(t, c) {
 			return
