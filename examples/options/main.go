@@ -44,7 +44,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	c := s.JSONCollection("json")
+	c := s.Collection(leia.JSONCollection, "json")
 	var compoundIndex = c.NewIndex("compound",
 		leia.NewFieldIndexer(leia.NewJSONPath("id"), leia.TokenizerOption(leia.WhiteSpaceTokenizer), leia.TransformerOption(leia.ToLower)),
 		leia.NewFieldIndexer(leia.NewJSONPath("obj.key"), leia.TokenizerOption(leia.WhiteSpaceTokenizer)),

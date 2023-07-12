@@ -100,6 +100,7 @@ type collection struct {
 	indexList      []Index
 	refMake        ReferenceFunc
 	documentLoader ld.DocumentLoader
+	collectionType CollectionType
 	valueCollector valueCollector
 }
 
