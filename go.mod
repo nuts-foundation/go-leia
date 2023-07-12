@@ -1,4 +1,4 @@
-module github.com/nuts-foundation/go-leia/v3
+module github.com/nuts-foundation/go-leia/v4
 
 go 1.17
 
