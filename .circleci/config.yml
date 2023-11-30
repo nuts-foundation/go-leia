@@ -3,7 +3,7 @@ version: 2.1
 jobs:
   build:
     docker:
-      - image: cimg/go:1.18
+      - image: cimg/go:1.21
 
     steps:
       - checkout
@@ -39,5 +39,5 @@ jobs:
       - run:
           name: Upload coverage
           command: |
-            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/go-leia/v3
+            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/go-leia/v4
 
