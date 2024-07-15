@@ -22,7 +22,6 @@ package leia
 import (
 	"bytes"
 	"errors"
-
 	"go.etcd.io/bbolt"
 )
 
@@ -271,7 +270,7 @@ func (i *index) Iterate(bucket *bbolt.Bucket, query Query, fn iteratorFn) error 
 	// extract tokenizer and transform to here
 	matchers := i.matchers(sortedQueryParts)
 
-	_, err = findR(cBucket.Cursor(), Key{}, matchers, fn, []byte{})
+	_, err = findR(cBucket.Cursor(), Key{}, matchers, fn, []byte{}, 0)
 	return err
 }
 
@@ -322,14 +321,14 @@ type matcher struct {
 	transform Transform
 }
 
-func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte) ([]byte, error) {
+func findR(cursor *bbolt.Cursor, searchKey Key, matchers []matcher, fn iteratorFn, lastCursorPosition []byte, depth int) ([]byte, error) {
 	var err error
 	returnKey := lastCursorPosition
-	cPart := matchers[0].queryPart
+	currentQueryPart := matchers[0].queryPart
 	//outer:
 	for _, seekTerm := range matchers[0].terms {
 		// new location in cursor to skip to
-		seek := ComposeKey(sKey, seekTerm.Bytes())
+		seek := ComposeKey(searchKey, seekTerm.Bytes())
 		condition := true
 
 		// do not go back to prevent infinite loops. The cursor may only go forward.
@@ -337,44 +336,44 @@ func findR(cursor *bbolt.Cursor, sKey Key, matchers []matcher, fn iteratorFn, la
 			seek = lastCursorPosition
 		}
 
-		for cKey, _ := cursor.Seek(seek); cKey != nil && bytes.HasPrefix(cKey, sKey) && condition; {
-			// remove prefix (+1), Split and take first
-			pf := cKey[len(sKey)+1:]
-			if len(sKey) == 0 {
-				pf = cKey
-			}
-			pfk := Key(pf)
-			newp := pfk.Split()[0]
+		var currentKey []byte
+		for currentKey, _ = cursor.Seek(seek); currentKey != nil && bytes.HasPrefix(currentKey, searchKey) && condition; {
+			var newPart []byte
+			split := Key(currentKey).Split()
+			if len(split) >= depth+1 {
+				newPart = split[depth]
+			} // else use nil value
 
 			// check of current (partial) key still matches with query
-			condition = cPart.Condition(newp, matchers[0].transform)
+			condition = currentQueryPart.Condition(newPart, matchers[0].transform)
 			if condition {
 				if len(matchers) > 1 {
 					// (partial) key still matches, continue to next index part
-					nKey := ComposeKey(sKey, newp)
+					nKey := ComposeKey(searchKey, newPart)
 					// on success the cursor is moved forward, the latest key is returned, continue with that key
 					// if keys haven't changed: break
 					var subKey []byte
-					subKey, err = findR(cursor, nKey, matchers[1:], fn, cKey)
-					if bytes.Equal(subKey, cKey) {
+					subKey, err = findR(cursor, nKey, matchers[1:], fn, currentKey, depth+1)
+					if bytes.Equal(subKey, currentKey) {
 						// the nested search could not advance the cursor, so we do it here before continuing the loop
-						cKey, _ = cursor.Next()
-						returnKey = cKey
+						currentKey, _ = cursor.Next()
+						returnKey = currentKey
 						continue
 					}
-					cKey = subKey
+					currentKey = subKey
 				} else {
 					// all index parts applied to key construction, retrieve results.
-					err = iterateOverDocuments(cursor, cKey, fn)
+					err = iterateOverDocuments(cursor, currentKey, fn)
 					// this position was a success, hopefully the next as well
-					cKey, _ = cursor.Next()
+					currentKey, _ = cursor.Next()
 				}
 				if err != nil {
 					return nil, err
 				}
 			}
-			returnKey = cKey
 		}
+		// move one lower?
+		returnKey = currentKey
 	}
 	return returnKey, nil
 }

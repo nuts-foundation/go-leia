@@ -27,6 +27,8 @@ import (
 	"os"
 	"path"
 	"time"
+
+	"github.com/nuts-foundation/go-leia/v4"
 )
 
 func main() {

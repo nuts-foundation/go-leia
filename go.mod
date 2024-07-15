@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/piprate/json-gold v0.4.1
 	github.com/stretchr/testify v1.8.4
-	github.com/tidwall/gjson v1.14.0
+	github.com/tidwall/gjson v1.17.0
 	go.etcd.io/bbolt v1.3.8
 )
 
