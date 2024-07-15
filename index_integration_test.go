@@ -134,3 +134,42 @@ func TestIndex_CursorDynamics(t *testing.T) {
 		assert.Equal(t, 2, found)
 	})
 }
+
+func TestIndex_Bugs(t *testing.T) {
+	t.Run("#28 iterator skipping value when it's shorter than the previous value", func(t *testing.T) {
+		doc0 := []byte(`{"key1": "06","key2": "1"}`)
+		doc1 := []byte(`{"key1": "0645"}`)
+		doc2 := []byte(`{"key1": "068","key2": "0682726"}`)
+		doc3 := []byte(`{"key1": "0682"}`)
+		key1 := NewJSONPath("key1")
+		key2 := NewJSONPath("key2")
+		db, c := testCollection(t)
+
+		i := c.NewIndex(t.Name(),
+			NewFieldIndexer(key1),
+			NewFieldIndexer(key2),
+		)
+
+		_ = db.Update(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			_ = i.Add(b, defaultReferenceCreator(doc0), doc0)
+			_ = i.Add(b, defaultReferenceCreator(doc1), doc1)
+			_ = i.Add(b, defaultReferenceCreator(doc2), doc2)
+			return i.Add(b, defaultReferenceCreator(doc3), doc3)
+		})
+
+		q := New(Prefix(key1, MustParseScalar("06"))).And(NotNil(key2))
+		found := 0
+
+		err := db.View(func(tx *bbolt.Tx) error {
+			b := testBucket(t, tx)
+			return i.Iterate(b, q, func(key Reference, value []byte) error {
+				found++
+				return nil
+			})
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, found)
+	})
+}
