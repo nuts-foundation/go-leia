@@ -372,7 +372,6 @@ func findR(cursor *bbolt.Cursor, searchKey Key, matchers []matcher, fn iteratorF
 				}
 			}
 		}
-		// move one lower?
 		returnKey = currentKey
 	}
 	return returnKey, nil
