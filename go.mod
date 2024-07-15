@@ -1,6 +1,6 @@
 module github.com/nuts-foundation/go-leia/v4
 
-go 1.21
+go 1.22
 
 require (
 	github.com/piprate/json-gold v0.4.1
