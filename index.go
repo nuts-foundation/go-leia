@@ -340,9 +340,9 @@ func findR(cursor *bbolt.Cursor, searchKey Key, matchers []matcher, fn iteratorF
 		for currentKey, _ = cursor.Seek(seek); currentKey != nil && bytes.HasPrefix(currentKey, searchKey) && condition; {
 			var newPart []byte
 			split := Key(currentKey).Split()
-			if len(split) >= depth+1 {
+			if len(split) > depth {
 				newPart = split[depth]
-			} // else use nil value
+			} // else use nil value, should not happen, but better to prevent panics
 
 			// check of current (partial) key still matches with query
 			condition = currentQueryPart.Condition(newPart, matchers[0].transform)
