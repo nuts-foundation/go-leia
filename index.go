@@ -196,7 +196,7 @@ outer:
 		}
 	}
 
-	return float64(hitcount) / float64(len(i.indexParts))
+	return float64(hitcount)
 }
 
 // matchingParts returns the queryParts that match the index.

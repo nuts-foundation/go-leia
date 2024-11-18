@@ -261,7 +261,7 @@ func TestIndex_IsMatch(t *testing.T) {
 			New(Eq(key, valueAsScalar)).
 				And(Eq(key2, valueAsScalar)))
 
-		assert.Equal(t, 1.0, f)
+		assert.Equal(t, 2.0, f)
 	})
 
 	t.Run("ok - exact match reverse ordering", func(t *testing.T) {
@@ -269,14 +269,14 @@ func TestIndex_IsMatch(t *testing.T) {
 			New(Eq(key2, valueAsScalar)).
 				And(Eq(key, valueAsScalar)))
 
-		assert.Equal(t, 1.0, f)
+		assert.Equal(t, 2.0, f)
 	})
 
 	t.Run("ok - partial match", func(t *testing.T) {
 		f := i.IsMatch(
 			New(Eq(key, valueAsScalar)))
 
-		assert.Equal(t, 0.5, f)
+		assert.Equal(t, 1.0, f)
 	})
 
 	t.Run("ok - no match", func(t *testing.T) {
