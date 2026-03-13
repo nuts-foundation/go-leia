@@ -25,6 +25,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 
 	"github.com/piprate/json-gold/ld"
 	"github.com/tidwall/gjson"
@@ -253,9 +254,11 @@ func (c *collection) Iterate(query Query, fn DocumentWalker) error {
 func (c *collection) IndexIterate(query Query, fn ReferenceScanFn) error {
 	index := c.findIndex(query)
 	if index == nil {
+		log.Printf("[%s] No index found for query in IndexIterate", c.name)
 		return ErrNoIndex
 	}
 
+	log.Printf("[%s] Using index for IndexIterate: %s", c.name, index.Name())
 	plan := indexScanQueryPlan{
 		queryPlanBase: queryPlanBase{
 			collection: c,
@@ -307,6 +310,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 	index := c.findIndex(query)
 
 	if index == nil {
+		log.Printf("[%s] No index found for query, performing full table scan", c.name)
 		return fullTableScanQueryPlan{
 			queryPlanBase: queryPlanBase{
 				collection: c,
@@ -315,6 +319,7 @@ func (c *collection) queryPlan(query Query) (queryPlan, error) {
 		}, nil
 	}
 
+	log.Printf("[%s] Using index: %s", c.name, index.Name())
 	return resultScanQueryPlan{
 		queryPlanBase: queryPlanBase{
 			collection: c,
