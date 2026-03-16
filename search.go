@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"strconv"
+	"strings"
 )
 
 // ErrNoQuery is returned when an empty query is given
@@ -162,73 +163,83 @@ func (q Query) String() string {
 		return "Query{}"
 	}
 
-	result := "Query{"
+	var b strings.Builder
+	b.WriteString("Query{")
 	for i, part := range q.parts {
 		if i > 0 {
-			result += " AND "
+			b.WriteString(" AND ")
 		}
-		result += queryPartString(part)
+		queryPartString(part, &b)
 	}
-	result += "}"
-	return result
+	b.WriteString("}")
+	return b.String()
 }
 
-func queryPartString(part QueryPart) string {
-	path := queryPathString(part.QueryPath())
+func queryPartString(part QueryPart, b *strings.Builder) {
+	queryPathString(part.QueryPath(), b)
 
 	switch p := part.(type) {
 	case eqPart:
-		return path + " = " + scalarString(p.value)
+		b.WriteString(" = ")
+		scalarString(p.value, b)
 	case rangePart:
-		return path + " IN [" + scalarString(p.begin) + ".." + scalarString(p.end) + "]"
+		b.WriteString(" IN [")
+		scalarString(p.begin, b)
+		b.WriteString("..")
+		scalarString(p.end, b)
+		b.WriteString("]")
 	case prefixPart:
-		return path + " PREFIX " + scalarString(p.value)
+		b.WriteString(" PREFIX ")
+		scalarString(p.value, b)
 	case notNilPart:
-		return path + " IS NOT NULL"
+		b.WriteString(" IS NOT NULL")
 	default:
-		return path + " <unknown condition>"
+		b.WriteString(" <unknown condition>")
 	}
 }
 
-func queryPathString(qp QueryPath) string {
+func queryPathString(qp QueryPath, b *strings.Builder) {
 	switch p := qp.(type) {
 	case jsonPath:
-		return string(p)
+		b.WriteString(string(p))
 	case iriPath:
 		if len(p.iris) == 0 {
-			return "(root)"
+			b.WriteString("(root)")
+			return
 		}
 		if len(p.iris) == 1 {
-			return p.iris[0]
+			b.WriteString(p.iris[0])
+			return
 		}
-		result := ""
 		for i, iri := range p.iris {
 			if i > 0 {
-				result += " -> "
+				b.WriteString(" -> ")
 			}
-			result += iri
+			b.WriteString(iri)
 		}
-		return result
 	default:
-		return "(unknown path)"
+		b.WriteString("(unknown path)")
 	}
 }
 
-func scalarString(s Scalar) string {
+func scalarString(s Scalar, b *strings.Builder) {
 	switch v := s.(type) {
 	case StringScalar:
-		return "\"" + string(v) + "\""
+		b.WriteByte('"')
+		b.WriteString(string(v))
+		b.WriteByte('"')
 	case BoolScalar:
 		if v {
-			return "true"
+			b.WriteString("true")
+		} else {
+			b.WriteString("false")
 		}
-		return "false"
 	case Float64Scalar:
-		return strconv.FormatFloat(float64(v), 'f', -1, 64)
+		b.WriteString(strconv.FormatFloat(float64(v), 'f', -1, 64))
 	case bytesScalar:
-		return "<bytes>"
+		b.WriteString("<bytes>")
 	default:
-		return "<scalar>"
+		b.WriteString("<scalar>")
 	}
 }
 
