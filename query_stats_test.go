@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestQueryStatsCallbacks_Integration(t *testing.T) {
+func TestQueryStatsCallbacks(t *testing.T) {
 	dir := t.TempDir()
 
 	var indexStatsCalls []IndexStats
