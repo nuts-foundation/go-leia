@@ -26,18 +26,8 @@ jobs:
           command: |
             cat c_raw.out | grep -v main > c.out
 
-      # Run coverage report for Code Climate
-      - run:
-          name: Setup Code Climate test-reporter
-          command: |
-            mkdir -p tmp/
-            # download test reporter as a static binary
-            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./tmp/cc-test-reporter
-            chmod +x ./tmp/cc-test-reporter
-            ./tmp/cc-test-reporter before-build
-      # Upload results
-      - run:
-          name: Upload coverage
-          command: |
-            ./tmp/cc-test-reporter after-build -t gocov --prefix github.com/nuts-foundation/go-leia/v4
+      # Qlty Coverage Orb
+      - qlty/coverage_publish:
+          files: c.out
+          format: coverprofile
 
