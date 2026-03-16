@@ -108,7 +108,7 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 			DocumentsScannedBytes: docsScannedBytes,
 			DocumentsMatched:      docsMatched,
 			DocumentsMatchedBytes: docsMatchedBytes,
-			SuggestedFields:       suggestIndexFields(f.query),
+			SuggestedFields:       suggestIndexFields(f.query.parts),
 			IndexUsed:             "",
 			FilterEfficiency:      0.0,
 		})
@@ -209,7 +209,7 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 				DocumentsScannedBytes: docsScannedBytes,
 				DocumentsMatched:      docsMatched,
 				DocumentsMatchedBytes: docsMatchedBytes,
-				SuggestedFields:       suggestIndexFields(i.query),
+				SuggestedFields:       suggestIndexFields(queryParts),
 				IndexUsed:             i.index.Name(),
 				FilterEfficiency:      efficiency,
 			})

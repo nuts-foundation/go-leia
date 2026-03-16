@@ -95,9 +95,11 @@ func TestQueryStatsCallbacks_Integration(t *testing.T) {
 		stats := indexStatsCalls[0]
 		assert.Equal(t, "test", stats.Collection)
 		assert.Equal(t, 5, stats.DocumentsScanned)
+		assert.Greater(t, stats.DocumentsScannedBytes, 0, "DocumentsScannedBytes should be tracked")
 		assert.Equal(t, 1, stats.DocumentsMatched)
-		assert.Greater(t, stats.DocumentsMatchedBytes, 0)
-		assert.Equal(t, []string{"name", "city"}, stats.SuggestedFields)
+		assert.Greater(t, stats.DocumentsMatchedBytes, 0, "DocumentsMatchedBytes should be tracked")
+		// Should only suggest the field NOT covered by the index (city), not the indexed field (name)
+		assert.Equal(t, []string{"city"}, stats.SuggestedFields)
 		// Suboptimal index - fields should be populated
 		assert.Equal(t, "name_index", stats.IndexUsed)
 		assert.Equal(t, 0.2, stats.FilterEfficiency)

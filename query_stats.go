@@ -34,8 +34,10 @@ package leia
 //   - Low DocumentsMatched/DocumentsScanned ratio: Suggests many documents were unnecessarily scanned.
 //     A ratio < 0.1 (10%) means 90% of the work was wasted and a better index would provide significant benefit.
 //
-//   - SuggestedFields: Fields that should be indexed together (compound index) to improve performance.
-//     Compare with the index definition of IndexUsed to see which fields are missing.
+//   - SuggestedFields: Fields that could be added to improve performance.
+//     For full table scans (IndexUsed == ""): Lists all query fields that should be indexed.
+//     For suboptimal indexes (IndexUsed != ""): Lists only the fields NOT covered by the current index.
+//     Create a compound index combining the used index fields with these suggested fields.
 //
 //   - IndexUsed: If empty string, no index was used (full table scan). If set, this index was used
 //     but didn't fully cover the query conditions (check SuggestedFields to see what's missing).
@@ -43,13 +45,10 @@ package leia
 //   - FilterEfficiency: For full table scans (IndexUsed == ""), this is 0.0.
 //     For indexed queries, this is the ratio of DocumentsMatched/DocumentsScanned (0.0 to 1.0)
 //
-//   - 1.0 (100%): Perfect - every document from the index matched (index fully covers query)
-//
-//   - 0.5 (50%): Half the fetched documents were discarded after filtering
-//
-//   - 0.1 (10%): Only 10% of fetched docs matched - 90% were wasted (very poor efficiency)
-//
-//   - < 0.1: Critical - strong indicator that a compound index is needed
+//     1.0 (100%): Perfect - every document from the index matched (index fully covers query)
+//     0.5 (50%): Half the fetched documents were discarded after filtering
+//     0.1 (10%): Only 10% of fetched docs matched - 90% were wasted (very poor efficiency)
+//     < 0.1: Critical - strong indicator that a compound index is needed
 //
 // Examples:
 //
@@ -78,8 +77,8 @@ type IndexStats struct {
 	// DocumentsMatchedBytes is the total size in bytes of all matched documents (after filtering).
 	// This is the actual result set size.
 	DocumentsMatchedBytes int
-	// SuggestedFields lists the query fields that should be indexed together to eliminate table scans or result set scans.
-	// For suboptimal indexes, compare with the used index definition to see which fields are missing.
+	// SuggestedFields lists the query fields that should be added to eliminate table scans or result set scans.
+	// For full table scans: all query fields. For indexed queries: only fields not covered by the used index.
 	SuggestedFields []string
 
 	// IndexUsed is the name of the index that was used for this query.
@@ -138,9 +137,9 @@ type QueryStatsCallbacks struct {
 	SuboptimalIndexThreshold int
 }
 
-func suggestIndexFields(query Query) []string {
-	fields := make([]string, len(query.parts))
-	for i, part := range query.parts {
+func suggestIndexFields(queryParts []QueryPart) []string {
+	fields := make([]string, len(queryParts))
+	for i, part := range queryParts {
 		fields[i] = queryPathString(part.QueryPath())
 	}
 	return fields
