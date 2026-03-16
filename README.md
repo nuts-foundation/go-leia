@@ -306,12 +306,12 @@ func main() {
         OnIndexProblem: func(stats leia.IndexStats) {
             if stats.IndexUsed == "" {
                 // Full table scan detected - no index was used
-                log.Printf("Missing index! Query: %s, Suggested fields: %v", 
-                    stats.Query.String(), stats.SuggestedFields)
+                log.Printf("Missing index! Query: %s, Unindexed fields: %v", 
+                    stats.Query.String(), stats.UnindexedFields)
             } else if stats.FilterEfficiency < 0.1 {
                 // Suboptimal index - low efficiency
-                log.Printf("Inefficient query! Index: %s, Efficiency: %.0f%%", 
-                    stats.IndexUsed, stats.FilterEfficiency*100)
+                log.Printf("Inefficient query! Index: %s, Efficiency: %.0f%%, Add fields: %v", 
+                    stats.IndexUsed, stats.FilterEfficiency*100, stats.UnindexedFields)
             }
         },
         SuboptimalIndexThreshold: 3,

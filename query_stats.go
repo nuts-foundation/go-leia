@@ -34,13 +34,13 @@ package leia
 //   - Low DocumentsMatched/DocumentsScanned ratio: Suggests many documents were unnecessarily scanned.
 //     A ratio < 0.1 (10%) means 90% of the work was wasted and a better index would provide significant benefit.
 //
-//   - SuggestedFields: Fields that could be added to improve performance.
+//   - UnindexedFields: Fields that could be indexed to improve performance.
 //     For full table scans (IndexUsed == ""): Lists all query fields that should be indexed.
 //     For suboptimal indexes (IndexUsed != ""): Lists only the fields NOT covered by the current index.
 //     Create a compound index combining the used index fields with these suggested fields.
 //
 //   - IndexUsed: If empty string, no index was used (full table scan). If set, this index was used
-//     but didn't fully cover the query conditions (check SuggestedFields to see what's missing).
+//     but didn't fully cover the query conditions (check UnindexedFields to see what's missing).
 //
 //   - FilterEfficiency: For full table scans (IndexUsed == ""), this is 0.0.
 //     For indexed queries, this is the ratio of DocumentsMatched/DocumentsScanned (0.0 to 1.0)
@@ -54,13 +54,13 @@ package leia
 //
 //  1. Full table scan: IndexUsed="", DocumentsScanned=10000, DocumentsMatched=5
 //     This means 9,995 documents were scanned unnecessarily.
-//     Action: Create index on SuggestedFields to reduce scans to just 5 documents.
+//     Action: Create index on UnindexedFields to reduce scans to just 5 documents.
 //
 //  2. Suboptimal index: Query for {name, city} with only name indexed:
-//     IndexUsed="name_index", SuggestedFields=[name, city]
+//     IndexUsed="name_index", UnindexedFields=[name, city]
 //     DocumentsScanned=100 (all matching name), DocumentsMatched=5 (matching name AND city)
 //     FilterEfficiency=0.05 (5%) - very poor
-//     Action: Create compound index on SuggestedFields to scan only 5 documents.
+//     Action: Create compound index on UnindexedFields to scan only 5 documents.
 type IndexStats struct {
 	// Collection is the name of the collection being queried
 	Collection string
@@ -77,9 +77,9 @@ type IndexStats struct {
 	// DocumentsMatchedBytes is the total size in bytes of all matched documents (after filtering).
 	// This is the actual result set size.
 	DocumentsMatchedBytes int
-	// SuggestedFields lists the query fields that should be added to eliminate table scans or result set scans.
+	// UnindexedFields lists the query fields that are not covered by any index.
 	// For full table scans: all query fields. For indexed queries: only fields not covered by the used index.
-	SuggestedFields []string
+	UnindexedFields []string
 
 	// IndexUsed is the name of the index that was used for this query.
 	// Empty string means no index was used (full table scan).
@@ -100,11 +100,11 @@ type IndexStats struct {
 //	        if stats.IndexUsed == "" {
 //	            // Full table scan
 //	            log.Printf("Full table scan! Query: %s, Add index on: %v",
-//	                stats.Query.String(), stats.SuggestedFields)
+//	                stats.Query.String(), stats.UnindexedFields)
 //	        } else if stats.FilterEfficiency < 0.1 {
 //	            // Suboptimal index with low efficiency
 //	            log.Printf("Inefficient query! Index=%s, Efficiency=%.0f%%, Consider compound index on: %v",
-//	                stats.IndexUsed, stats.FilterEfficiency*100, stats.SuggestedFields)
+//	                stats.IndexUsed, stats.FilterEfficiency*100, stats.UnindexedFields)
 //	        }
 //	    },
 //	    SuboptimalIndexThreshold: 3,
@@ -118,12 +118,10 @@ type IndexStats struct {
 type QueryStatsCallbacks struct {
 	// OnIndexProblem is called when a query has performance concerns.
 	// Check IndexUsed == "" to determine if it's a full table scan or suboptimal index usage.
-	// For full table scans, add an index on SuggestedFields.
-	// For suboptimal indexes, consider creating a compound index that includes all query fields.
 	//
 	// Concurrency: This callback may be invoked concurrently from multiple goroutines when
-	// queries run in parallel (for example when using bbolt's concurrent readers). The Leia
-	// library does not serialize calls to this function. Implementations of OnIndexProblem
+	// queries run in parallel. This library does not serialize calls to this function.
+	// Implementations of OnIndexProblem
 	// MUST therefore be goroutine-safe (e.g. by using synchronization when accessing shared
 	// state, or by only calling goroutine-safe functions such as most loggers).
 	OnIndexProblem func(stats IndexStats)

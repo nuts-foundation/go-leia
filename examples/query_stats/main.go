@@ -45,7 +45,7 @@ func main() {
 				log.Printf("  Documents scanned: %d\n", stats.DocumentsScanned)
 				log.Printf("  Documents matched: %d\n", stats.DocumentsMatched)
 				log.Printf("  Result set size: %d bytes (%.2f KB)\n", stats.DocumentsMatchedBytes, float64(stats.DocumentsMatchedBytes)/1024)
-				log.Printf("  Suggested index fields: %v\n", stats.SuggestedFields)
+				log.Printf("  Unindexed fields: %v\n", stats.UnindexedFields)
 				log.Printf("  Consider adding an index on these fields to improve performance.\n\n")
 			} else if stats.FilterEfficiency < 0.1 && stats.DocumentsScanned > 10 {
 				// Suboptimal index with very low efficiency
@@ -58,7 +58,7 @@ func main() {
 				log.Printf("  Scanned data: %d bytes (%.2f KB)\n", stats.DocumentsScannedBytes, float64(stats.DocumentsScannedBytes)/1024)
 				log.Printf("  Matched data: %d bytes (%.2f KB)\n", stats.DocumentsMatchedBytes, float64(stats.DocumentsMatchedBytes)/1024)
 				log.Printf("  Filter efficiency: %.2f%%\n", stats.FilterEfficiency*100)
-				log.Printf("  Suggested compound index fields: %v\n", stats.SuggestedFields)
+				log.Printf("  Unindexed fields: %v\n", stats.UnindexedFields)
 				log.Printf("  Consider adding a compound index for better performance.\n\n")
 			} else if stats.IndexUsed != "" {
 				// Suboptimal index with moderate efficiency
@@ -68,7 +68,7 @@ func main() {
 				log.Printf("  Index used: %s\n", stats.IndexUsed)
 				log.Printf("  Documents scanned: %d, matched: %d (%.1f%% efficiency)\n",
 					stats.DocumentsScanned, stats.DocumentsMatched, stats.FilterEfficiency*100)
-				log.Printf("  Consider compound index on: %v\n\n", stats.SuggestedFields)
+				log.Printf("  Consider compound index on: %v\n\n", stats.UnindexedFields)
 			}
 		},
 		SuboptimalIndexThreshold: 3,
