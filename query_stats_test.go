@@ -23,7 +23,7 @@ import (
 	"context"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +44,7 @@ func TestQueryStatsCallbacks_Integration(t *testing.T) {
 		SuboptimalIndexThreshold: 3,
 	}
 
-	s, err := NewStore(path.Join(dir, "test.db"), WithQueryStatsCallbacks(callbacks))
+	s, err := NewStore(filepath.Join(dir, "test.db"), WithQueryStatsCallbacks(callbacks))
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -114,5 +114,16 @@ func TestQueryStatsCallbacks_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		assert.Len(t, indexStatsCalls, 0, "No callback should be triggered below threshold")
+	})
+
+	t.Run("no callback for empty query (scan-all)", func(t *testing.T) {
+		indexStatsCalls = nil
+
+		// Empty query (no parts) - intentional scan-all, not a performance problem
+		query := Query{parts: []QueryPart{}}
+		_, err := c.Find(context.Background(), query)
+		require.NoError(t, err)
+
+		assert.Len(t, indexStatsCalls, 0, "No callback should be triggered for intentional scan-all query")
 	})
 }

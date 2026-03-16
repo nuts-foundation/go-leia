@@ -128,9 +128,11 @@ type QueryStatsCallbacks struct {
 	// For suboptimal indexes, consider creating a compound index that includes all query fields.
 	OnIndexProblem func(stats IndexStats)
 
-	// SuboptimalIndexThreshold is the minimum number of wasted document scans to trigger OnIndexProblem for indexed queries.
+	// SuboptimalIndexThreshold is the number of wasted document scans that must be exceeded to trigger OnIndexProblem for indexed queries.
 	// Wasted scans = DocumentsScanned - DocumentsMatched (documents that were fetched but filtered out).
-	// Full table scans are always reported. Default is 3 if not set.
+	// The callback triggers when wastedScans > SuboptimalIndexThreshold (strictly greater than).
+	// Full table scans with query conditions are always reported (regardless of threshold).
+	// Default is 3 if not set (triggers when more than 3 documents are wasted).
 	// Increase for noisier systems, decrease for stricter monitoring.
 	SuboptimalIndexThreshold int
 }

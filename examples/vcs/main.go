@@ -25,7 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
+	"path/filepath"
 	"time"
 
 	"github.com/nuts-foundation/go-leia/v4"
@@ -42,7 +42,7 @@ func main() {
 		}
 	}()
 
-	s, err := leia.NewStore(path.Join(dir, "documents.db"))
+	s, err := leia.NewStore(filepath.Join(dir, "documents.db"))
 	if err != nil {
 		panic(err)
 	}

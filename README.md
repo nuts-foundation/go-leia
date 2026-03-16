@@ -327,8 +327,9 @@ The callback provides detailed statistics including:
 - Result set size in bytes
 - Suggested fields for creating indexes
 
-The `SuboptimalIndexThreshold` is measured in wasted scans (scanned - matched). 
-For example, with a threshold of 3, the callback triggers only when more than 3 documents 
+The `SuboptimalIndexThreshold` determines when to report suboptimal indexes. 
+The callback triggers when wasted scans (scanned - matched) exceed this threshold (strictly greater than). 
+For example, with a threshold of 3, the callback triggers when 4 or more documents 
 were scanned but didn't match the query criteria.
 
 For a complete example, see [examples/query_stats](examples/query_stats).

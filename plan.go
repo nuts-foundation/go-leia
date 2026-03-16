@@ -98,8 +98,8 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		return nil
 	})
 
-	// Call callback if configured
-	if err == nil && f.collection.queryStatsCallbacks.OnIndexProblem != nil {
+	// Call callback if configured (only when query has conditions - empty query is intentional scan-all)
+	if err == nil && len(f.query.parts) > 0 && f.collection.queryStatsCallbacks.OnIndexProblem != nil {
 		f.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
 			Collection:             f.collection.name,
 			Query:                  f.query,
@@ -163,11 +163,12 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
 		resultScan := resultScanner(queryParts, matchCounter, i.collection)
 
-		// fetcher expands references to documents, for each document it calls the resultScan
+		fetcher := documentFetcher(docBucket, resultScan)
+
 		// Wrap fetcher to count scanned documents
 		fetcherWithCounter := func(key []byte, ref []byte) error {
 			docsScanned++
-			return documentFetcher(docBucket, resultScan)(key, ref)
+			return fetcher(key, ref)
 		}
 
 		// expander expands the index entry to the actual document
