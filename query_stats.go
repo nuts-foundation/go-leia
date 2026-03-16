@@ -133,7 +133,7 @@ type QueryStatsCallbacks struct {
 	// Wasted scans = DocumentsScanned - DocumentsMatched (documents that were fetched but filtered out).
 	// The callback triggers when wastedScans > SuboptimalIndexThreshold (strictly greater than).
 	// Full table scans with query conditions are always reported (regardless of threshold).
-	// Default is 3 if not set (triggers when more than 3 documents are wasted).
+	// Default is 3 (triggers when more than 3 documents are wasted) if set to a negative value.
 	// Increase for noisier systems, decrease for stricter monitoring.
 	SuboptimalIndexThreshold int
 }

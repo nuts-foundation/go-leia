@@ -163,19 +163,22 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
 		resultScan := resultScanner(queryParts, matchCounter, i.collection)
 
-		// fetcher expands references to documents, for each document it calls the resultScan
-		// Hoist outside the wrapper to avoid allocating a closure per index entry
-		fetcher := documentFetcher(docBucket, resultScan)
-
-		// Wrap fetcher to count scanned documents and bytes
+		// Fetch document once and reuse for both counting and scanning (avoids double DB lookup)
 		fetcherWithCounter := func(key []byte, ref []byte) error {
-			docsScanned++
-			// Fetch doc bytes to count scanned size
-			docBytes := docBucket.Get(ref)
-			if docBytes != nil {
-				scannedBytes += len(docBytes)
+			if docBucket == nil {
+				return nil
 			}
-			return fetcher(key, ref)
+			docBytes := docBucket.Get(ref)
+			if docBytes == nil {
+				return nil
+			}
+
+			// Count scanned bytes
+			docsScanned++
+			scannedBytes += len(docBytes)
+
+			// Pass the already-fetched document to the scanner
+			return resultScan(ref, docBytes)
 		}
 
 		// expander expands the index entry to the actual document
@@ -187,7 +190,7 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	// Call callback if configured and threshold is met
 	if err == nil && i.collection.queryStatsCallbacks.OnIndexProblem != nil {
 		threshold := i.collection.queryStatsCallbacks.SuboptimalIndexThreshold
-		// Default threshold is 3 wasted scans (scanned but not matched documents) if not set by user (or negative)
+		// Default threshold is 3 wasted scans (scanned but not matched documents) if set to a negative value
 		if threshold < 0 {
 			threshold = 3
 		}
