@@ -137,31 +137,10 @@ type QueryStatsCallbacks struct {
 	SuboptimalIndexThreshold int
 }
 
-func formatQueryPath(qp QueryPath) string {
-	switch p := qp.(type) {
-	case jsonPath:
-		return string(p)
-	case iriPath:
-		if len(p.iris) == 0 {
-			return "(root)"
-		}
-		result := ""
-		for i, iri := range p.iris {
-			if i > 0 {
-				result += " -> "
-			}
-			result += iri
-		}
-		return result
-	default:
-		return "(unknown)"
-	}
-}
-
 func suggestIndexFields(query Query) []string {
 	fields := make([]string, len(query.parts))
 	for i, part := range query.parts {
-		fields[i] = formatQueryPath(part.QueryPath())
+		fields[i] = queryPathString(part.QueryPath())
 	}
 	return fields
 }
