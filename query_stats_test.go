@@ -21,8 +21,6 @@ package leia
 
 import (
 	"context"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 
@@ -31,9 +29,7 @@ import (
 )
 
 func TestQueryStatsCallbacks_Integration(t *testing.T) {
-	dir, err := ioutil.TempDir("", "query-stats-test")
-	require.NoError(t, err)
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	var indexStatsCalls []IndexStats
 
