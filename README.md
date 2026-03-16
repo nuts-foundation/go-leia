@@ -23,6 +23,7 @@ The goal is to provide a simple and fast way to find relevant JSON documents usi
     - [Alias option](#alias-option)
     - [Transform option](#transform-option)
     - [Tokenizer option](#tokenizer-option)
+- [Query Performance Monitoring](#query-performance-monitoring)
 
 ## Installing
 
@@ -290,3 +291,46 @@ func main() {
 ```
 
 All options can be combined.
+
+## Query Performance Monitoring
+
+Leia can track query performance and identify missing or suboptimal indexes through callbacks.
+This helps optimize query performance by providing actionable insights about index usage.
+
+```go
+func main() {
+    ...
+    
+    // Configure callbacks to monitor query performance
+    callbacks := leia.QueryStatsCallbacks{
+        OnIndexProblem: func(stats leia.IndexStats) {
+            if stats.IndexUsed == "" {
+                // Full table scan detected - no index was used
+                log.Printf("Missing index! Query: %s, Suggested fields: %v", 
+                    stats.Query.String(), stats.SuggestedFields)
+            } else if stats.FilterEfficiency < 0.1 {
+                // Suboptimal index - low efficiency
+                log.Printf("Inefficient query! Index: %s, Efficiency: %.0f%%", 
+                    stats.IndexUsed, stats.FilterEfficiency*100)
+            }
+        },
+        SuboptimalIndexThreshold: 3,
+    }
+    
+    store, err := leia.NewStore("my.db", leia.WithQueryStatsCallbacks(callbacks))
+}
+```
+
+The callback provides detailed statistics including:
+- Number of documents scanned vs matched
+- Filter efficiency (for indexed queries)
+- Result set size in bytes
+- Suggested fields for creating indexes
+
+The `SuboptimalIndexThreshold` is measured in wasted scans (scanned - matched). 
+For example, with a threshold of 3, the callback triggers only when more than 3 documents 
+were scanned but didn't match the query criteria.
+
+For a complete example, see [examples/query_stats](examples/query_stats).
+
+

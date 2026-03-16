@@ -57,11 +57,13 @@ type indexScanQueryPlan struct {
 // ReferenceScanFn is a function type which is called with an index key and a document Reference as value
 type ReferenceScanFn func(key []byte, value []byte) error
 
-// documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
+// documentScanFn is a function type which is called with a document Reference as key and the document bytes as value
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
-	return f.collection.db.View(func(tx *bbolt.Tx) error {
+	var docsScanned, docsMatched, resultSetBytes int
+
+	err := f.collection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(f.collection.name))
 		if bucket == nil {
 			// no bucket means no docs
@@ -77,16 +79,42 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		if f.query.parts != nil {
 			parts = f.query.parts
 		}
-		scanner := resultScanner(parts, walker, f.collection)
+
+		// Wrap walker to count matched documents and bytes
+		matchCounter := func(ref Reference, doc []byte) error {
+			docsMatched++
+			resultSetBytes += len(doc)
+			return walker(ref, doc)
+		}
+		scanner := resultScanner(parts, matchCounter, f.collection)
 
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
+			docsScanned++
 			if err := scanner(ref, bytes); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+
+	// Call callback if configured
+	if err == nil && f.collection.queryStatsCallbacks.OnIndexProblem != nil {
+		f.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
+			Collection:             f.collection.name,
+			Query:                  f.query,
+			DocumentsScanned:       docsScanned,
+			DocumentsMatched:       docsMatched,
+			ResultSetBytes:         resultSetBytes,
+			SuggestedFields:        suggestIndexFields(f.query),
+			IndexUsed:              "",
+			QueryPartsInIndex:      0,
+			QueryPartsOutsideIndex: len(f.query.parts),
+			FilterEfficiency:       0.0,
+		})
+	}
+
+	return err
 }
 
 func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
@@ -112,9 +140,10 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 
 func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts := i.index.QueryPartsOutsideIndex(i.query)
+	var docsScanned, docsMatched, resultSetBytes int
 
 	// do the IndexScan
-	return i.collection.db.View(func(tx *bbolt.Tx) error {
+	err := i.collection.db.View(func(tx *bbolt.Tx) error {
 		docBucket := i.collection.documentBucket(tx)
 		if docBucket == nil {
 			// no bucket means no docs
@@ -124,17 +153,59 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		// nil is not possible since adding an index creates the iBucket
 		iBucket := tx.Bucket([]byte(i.collection.name))
 
+		// Wrap walker to count matched documents and bytes
+		matchCounter := func(ref Reference, doc []byte) error {
+			docsMatched++
+			resultSetBytes += len(doc)
+			return walker(ref, doc)
+		}
+
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
-		resultScan := resultScanner(queryParts, walker, i.collection)
+		resultScan := resultScanner(queryParts, matchCounter, i.collection)
 
 		// fetcher expands references to documents, for each document it calls the resultScan
-		fetcher := documentFetcher(docBucket, resultScan)
+		// Wrap fetcher to count scanned documents
+		fetcherWithCounter := func(key []byte, ref []byte) error {
+			docsScanned++
+			return documentFetcher(docBucket, resultScan)(key, ref)
+		}
 
 		// expander expands the index entry to the actual document
-		expander := indexEntryExpander(fetcher)
+		expander := indexEntryExpander(fetcherWithCounter)
 
 		return i.index.Iterate(iBucket, i.query, expander)
 	})
+
+	// Call callback if configured and threshold is met
+	if err == nil && i.collection.queryStatsCallbacks.OnIndexProblem != nil {
+		threshold := i.collection.queryStatsCallbacks.SuboptimalIndexThreshold
+		if threshold == 0 {
+			threshold = 3
+		}
+
+		wastedScans := docsScanned - docsMatched
+		if wastedScans > threshold {
+			efficiency := 1.0
+			if docsScanned > 0 {
+				efficiency = float64(docsMatched) / float64(docsScanned)
+			}
+
+			i.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
+				Collection:             i.collection.name,
+				Query:                  i.query,
+				DocumentsScanned:       docsScanned,
+				DocumentsMatched:       docsMatched,
+				ResultSetBytes:         resultSetBytes,
+				SuggestedFields:        suggestIndexFields(i.query),
+				IndexUsed:              i.index.Name(),
+				QueryPartsInIndex:      len(i.query.parts) - len(queryParts),
+				QueryPartsOutsideIndex: len(queryParts),
+				FilterEfficiency:       efficiency,
+			})
+		}
+	}
+
+	return err
 }
 
 // documentFetcher creates a ReferenceScanFn which is called with a reference, fetches the document and calls the documentScanFn

@@ -212,3 +212,65 @@ func TestNotNilPart_Equals(t *testing.T) {
 		assert.False(t, qp.Equals(NotNil(NewJSONPath("a"))))
 	})
 }
+
+func TestQuery_String(t *testing.T) {
+	t.Run("empty query", func(t *testing.T) {
+		query := Query{parts: []QueryPart{}}
+		assert.Equal(t, "Query{}", query.String())
+	})
+
+	t.Run("single Eq part with JSONPath", func(t *testing.T) {
+		query := New(Eq(NewJSONPath("name"), MustParseScalar("Alice")))
+		assert.Equal(t, `Query{name = "Alice"}`, query.String())
+	})
+
+	t.Run("multiple parts with JSONPath", func(t *testing.T) {
+		query := New(Eq(NewJSONPath("name"), MustParseScalar("Alice"))).
+			And(Eq(NewJSONPath("age"), MustParseScalar(30.0)))
+		assert.Equal(t, `Query{name = "Alice" AND age = 30}`, query.String())
+	})
+
+	t.Run("range query", func(t *testing.T) {
+		query := New(Range(NewJSONPath("age"), MustParseScalar(20.0), MustParseScalar(30.0)))
+		assert.Equal(t, `Query{age IN [20..30]}`, query.String())
+	})
+
+	t.Run("prefix query", func(t *testing.T) {
+		query := New(Prefix(NewJSONPath("name"), MustParseScalar("Ali")))
+		assert.Equal(t, `Query{name PREFIX "Ali"}`, query.String())
+	})
+
+	t.Run("notNil query", func(t *testing.T) {
+		query := New(NotNil(NewJSONPath("email")))
+		assert.Equal(t, `Query{email IS NOT NULL}`, query.String())
+	})
+
+	t.Run("boolean scalar", func(t *testing.T) {
+		query := New(Eq(NewJSONPath("active"), MustParseScalar(true)))
+		assert.Equal(t, `Query{active = true}`, query.String())
+	})
+
+	t.Run("IRI path with single element", func(t *testing.T) {
+		query := New(Eq(NewIRIPath("https://example.com/name"), MustParseScalar("Alice")))
+		assert.Equal(t, `Query{https://example.com/name = "Alice"}`, query.String())
+	})
+
+	t.Run("IRI path with multiple elements", func(t *testing.T) {
+		query := New(Eq(
+			NewIRIPath("https://www.w3.org/2018/credentials#credentialSubject", "https://example.com/name"),
+			MustParseScalar("Alice"),
+		))
+		expected := `Query{https://www.w3.org/2018/credentials#credentialSubject -> https://example.com/name = "Alice"}`
+		assert.Equal(t, expected, query.String())
+	})
+
+	t.Run("complex query with multiple conditions", func(t *testing.T) {
+		query := New(Eq(NewJSONPath("issuer"), MustParseScalar("did:example:123"))).
+			And(Eq(NewJSONPath("type"), MustParseScalar("VerifiableCredential"))).
+			And(Range(NewJSONPath("issuanceDate"), MustParseScalar(20200101.0), MustParseScalar(20201231.0))).
+			And(NotNil(NewJSONPath("credentialSubject")))
+
+		expected := `Query{issuer = "did:example:123" AND type = "VerifiableCredential" AND issuanceDate IN [20200101..20201231] AND credentialSubject IS NOT NULL}`
+		assert.Equal(t, expected, query.String())
+	})
+}

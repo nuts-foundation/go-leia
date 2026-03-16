@@ -22,6 +22,7 @@ package leia
 import (
 	"bytes"
 	"errors"
+	"strconv"
 )
 
 // ErrNoQuery is returned when an empty query is given
@@ -153,6 +154,82 @@ type Query struct {
 func (q Query) And(part QueryPart) Query {
 	q.parts = append(q.parts, part)
 	return q
+}
+
+// String returns a human-readable representation of the query for logging
+func (q Query) String() string {
+	if len(q.parts) == 0 {
+		return "Query{}"
+	}
+
+	result := "Query{"
+	for i, part := range q.parts {
+		if i > 0 {
+			result += " AND "
+		}
+		result += queryPartString(part)
+	}
+	result += "}"
+	return result
+}
+
+func queryPartString(part QueryPart) string {
+	path := queryPathString(part.QueryPath())
+
+	switch p := part.(type) {
+	case eqPart:
+		return path + " = " + scalarString(p.value)
+	case rangePart:
+		return path + " IN [" + scalarString(p.begin) + ".." + scalarString(p.end) + "]"
+	case prefixPart:
+		return path + " PREFIX " + scalarString(p.value)
+	case notNilPart:
+		return path + " IS NOT NULL"
+	default:
+		return path + " <unknown condition>"
+	}
+}
+
+func queryPathString(qp QueryPath) string {
+	switch p := qp.(type) {
+	case jsonPath:
+		return string(p)
+	case iriPath:
+		if len(p.iris) == 0 {
+			return "(root)"
+		}
+		if len(p.iris) == 1 {
+			return p.iris[0]
+		}
+		result := ""
+		for i, iri := range p.iris {
+			if i > 0 {
+				result += " -> "
+			}
+			result += iri
+		}
+		return result
+	default:
+		return "(unknown path)"
+	}
+}
+
+func scalarString(s Scalar) string {
+	switch v := s.(type) {
+	case StringScalar:
+		return "\"" + string(v) + "\""
+	case BoolScalar:
+		if v {
+			return "true"
+		}
+		return "false"
+	case Float64Scalar:
+		return strconv.FormatFloat(float64(v), 'f', -1, 64)
+	case bytesScalar:
+		return "<bytes>"
+	default:
+		return "<scalar>"
+	}
 }
 
 type eqPart struct {
