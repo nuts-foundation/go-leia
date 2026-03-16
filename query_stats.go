@@ -121,6 +121,12 @@ type QueryStatsCallbacks struct {
 	// Check IndexUsed == "" to determine if it's a full table scan or suboptimal index usage.
 	// For full table scans, add an index on SuggestedFields.
 	// For suboptimal indexes, consider creating a compound index that includes all query fields.
+	//
+	// Concurrency: This callback may be invoked concurrently from multiple goroutines when
+	// queries run in parallel (for example when using bbolt's concurrent readers). The Leia
+	// library does not serialize calls to this function. Implementations of OnIndexProblem
+	// MUST therefore be goroutine-safe (e.g. by using synchronization when accessing shared
+	// state, or by only calling goroutine-safe functions such as most loggers).
 	OnIndexProblem func(stats IndexStats)
 
 	// SuboptimalIndexThreshold is the number of wasted document scans that must be exceeded to trigger OnIndexProblem for indexed queries.
