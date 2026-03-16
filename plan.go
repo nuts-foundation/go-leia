@@ -187,7 +187,8 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	// Call callback if configured and threshold is met
 	if err == nil && i.collection.queryStatsCallbacks.OnIndexProblem != nil {
 		threshold := i.collection.queryStatsCallbacks.SuboptimalIndexThreshold
-		if threshold == 0 {
+		// Default threshold is 3 wasted scans (scanned but not matched documents) if not set by user (or negative)
+		if threshold < 0 {
 			threshold = 3
 		}
 
