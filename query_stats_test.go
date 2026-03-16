@@ -74,13 +74,12 @@ func TestQueryStatsCallbacks_Integration(t *testing.T) {
 		stats := indexStatsCalls[0]
 		assert.Equal(t, "test", stats.Collection)
 		assert.Equal(t, 6, stats.DocumentsScanned)
+		assert.Greater(t, stats.DocumentsScannedBytes, 0, "DocumentsScannedBytes should be tracked")
 		assert.Equal(t, 2, stats.DocumentsMatched)
-		assert.Greater(t, stats.ResultSetBytes, 0)
-		assert.Len(t, stats.SuggestedFields, 1)
+		assert.Greater(t, stats.DocumentsMatchedBytes, 0, "DocumentsMatchedBytes should be tracked")
+		assert.Equal(t, []string{"city"}, stats.SuggestedFields)
 		// Full table scan - check zero values
 		assert.Equal(t, "", stats.IndexUsed)
-		assert.Equal(t, 0, stats.QueryPartsInIndex)
-		assert.Equal(t, 1, stats.QueryPartsOutsideIndex)
 		assert.Equal(t, 0.0, stats.FilterEfficiency)
 	})
 
@@ -95,14 +94,13 @@ func TestQueryStatsCallbacks_Integration(t *testing.T) {
 		assert.Len(t, indexStatsCalls, 1)
 		stats := indexStatsCalls[0]
 		assert.Equal(t, "test", stats.Collection)
-		assert.Equal(t, "name_index", stats.IndexUsed)
-		assert.Equal(t, 1, stats.QueryPartsInIndex)
-		assert.Equal(t, 1, stats.QueryPartsOutsideIndex)
 		assert.Equal(t, 5, stats.DocumentsScanned)
 		assert.Equal(t, 1, stats.DocumentsMatched)
-		assert.Greater(t, stats.ResultSetBytes, 0)
+		assert.Greater(t, stats.DocumentsMatchedBytes, 0)
+		assert.Equal(t, []string{"name", "city"}, stats.SuggestedFields)
+		// Suboptimal index - fields should be populated
+		assert.Equal(t, "name_index", stats.IndexUsed)
 		assert.Equal(t, 0.2, stats.FilterEfficiency)
-		assert.Len(t, stats.SuggestedFields, 2)
 	})
 
 	t.Run("no callback below threshold", func(t *testing.T) {

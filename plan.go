@@ -61,7 +61,7 @@ type ReferenceScanFn func(key []byte, value []byte) error
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
-	var docsScanned, docsMatched, resultSetBytes int
+	var docsScanned, docsMatched, scannedBytes, matchedBytes int
 
 	err := f.collection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(f.collection.name))
@@ -83,7 +83,7 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		// Wrap walker to count matched documents and bytes
 		matchCounter := func(ref Reference, doc []byte) error {
 			docsMatched++
-			resultSetBytes += len(doc)
+			matchedBytes += len(doc)
 			return walker(ref, doc)
 		}
 		scanner := resultScanner(parts, matchCounter, f.collection)
@@ -91,6 +91,7 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
 			docsScanned++
+			scannedBytes += len(bytes)
 			if err := scanner(ref, bytes); err != nil {
 				return err
 			}
@@ -101,16 +102,15 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 	// Call callback if configured (only when query has conditions - empty query is intentional scan-all)
 	if err == nil && len(f.query.parts) > 0 && f.collection.queryStatsCallbacks.OnIndexProblem != nil {
 		f.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
-			Collection:             f.collection.name,
-			Query:                  f.query,
-			DocumentsScanned:       docsScanned,
-			DocumentsMatched:       docsMatched,
-			ResultSetBytes:         resultSetBytes,
-			SuggestedFields:        suggestIndexFields(f.query),
-			IndexUsed:              "",
-			QueryPartsInIndex:      0,
-			QueryPartsOutsideIndex: len(f.query.parts),
-			FilterEfficiency:       0.0,
+			Collection:            f.collection.name,
+			Query:                 f.query,
+			DocumentsScanned:      docsScanned,
+			DocumentsScannedBytes: scannedBytes,
+			DocumentsMatched:      docsMatched,
+			DocumentsMatchedBytes: matchedBytes,
+			SuggestedFields:       suggestIndexFields(f.query),
+			IndexUsed:             "",
+			FilterEfficiency:      0.0,
 		})
 	}
 
@@ -140,7 +140,7 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 
 func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts := i.index.QueryPartsOutsideIndex(i.query)
-	var docsScanned, docsMatched, resultSetBytes int
+	var docsScanned, docsMatched, scannedBytes, matchedBytes int
 
 	// do the IndexScan
 	err := i.collection.db.View(func(tx *bbolt.Tx) error {
@@ -156,18 +156,25 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		// Wrap walker to count matched documents and bytes
 		matchCounter := func(ref Reference, doc []byte) error {
 			docsMatched++
-			resultSetBytes += len(doc)
+			matchedBytes += len(doc)
 			return walker(ref, doc)
 		}
 
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
 		resultScan := resultScanner(queryParts, matchCounter, i.collection)
 
+		// fetcher expands references to documents, for each document it calls the resultScan
+		// Hoist outside the wrapper to avoid allocating a closure per index entry
 		fetcher := documentFetcher(docBucket, resultScan)
 
-		// Wrap fetcher to count scanned documents
+		// Wrap fetcher to count scanned documents and bytes
 		fetcherWithCounter := func(key []byte, ref []byte) error {
 			docsScanned++
+			// Fetch doc bytes to count scanned size
+			docBytes := docBucket.Get(ref)
+			if docBytes != nil {
+				scannedBytes += len(docBytes)
+			}
 			return fetcher(key, ref)
 		}
 
@@ -192,16 +199,15 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 			}
 
 			i.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
-				Collection:             i.collection.name,
-				Query:                  i.query,
-				DocumentsScanned:       docsScanned,
-				DocumentsMatched:       docsMatched,
-				ResultSetBytes:         resultSetBytes,
-				SuggestedFields:        suggestIndexFields(i.query),
-				IndexUsed:              i.index.Name(),
-				QueryPartsInIndex:      len(i.query.parts) - len(queryParts),
-				QueryPartsOutsideIndex: len(queryParts),
-				FilterEfficiency:       efficiency,
+				Collection:            i.collection.name,
+				Query:                 i.query,
+				DocumentsScanned:      docsScanned,
+				DocumentsScannedBytes: scannedBytes,
+				DocumentsMatched:      docsMatched,
+				DocumentsMatchedBytes: matchedBytes,
+				SuggestedFields:       suggestIndexFields(i.query),
+				IndexUsed:             i.index.Name(),
+				FilterEfficiency:      efficiency,
 			})
 		}
 	}

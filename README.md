@@ -323,9 +323,10 @@ func main() {
 
 The callback provides detailed statistics including:
 - Number of documents scanned vs matched
+- Size of scanned and matched documents (in bytes)
 - Filter efficiency (for indexed queries)
-- Result set size in bytes
 - Suggested fields for creating indexes
+- Query string representation (with masked values for security)
 
 The `SuboptimalIndexThreshold` determines when to report suboptimal indexes. 
 The callback triggers when wasted scans (scanned - matched) exceed this threshold (strictly greater than). 

@@ -22,7 +22,6 @@ package leia
 import (
 	"bytes"
 	"errors"
-	"strconv"
 )
 
 // ErrNoQuery is returned when an empty query is given
@@ -156,7 +155,8 @@ func (q Query) And(part QueryPart) Query {
 	return q
 }
 
-// String returns a human-readable representation of the query for logging
+// String returns a human-readable representation of the query for logging.
+// Scalar values are masked (shown as <string>, <number>, <bool>) for security/privacy.
 func (q Query) String() string {
 	if len(q.parts) == 0 {
 		return "Query{}"
@@ -215,16 +215,13 @@ func queryPathString(qp QueryPath) string {
 }
 
 func scalarString(s Scalar) string {
-	switch v := s.(type) {
+	switch s.(type) {
 	case StringScalar:
-		return "\"" + string(v) + "\""
+		return "<string>"
 	case BoolScalar:
-		if v {
-			return "true"
-		}
-		return "false"
+		return "<bool>"
 	case Float64Scalar:
-		return strconv.FormatFloat(float64(v), 'f', -1, 64)
+		return "<number>"
 	case bytesScalar:
 		return "<bytes>"
 	default:
