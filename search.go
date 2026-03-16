@@ -176,13 +176,17 @@ func (q Query) String() string {
 func queryPartString(part QueryPart) string {
 	path := queryPathString(part.QueryPath())
 
+	kind := func(s Scalar) string {
+		return "<" + s.Kind() + ">"
+	}
+
 	switch p := part.(type) {
 	case eqPart:
-		return path + " = " + scalarString(p.value)
+		return path + " = " + kind(p.value)
 	case rangePart:
-		return path + " IN [" + scalarString(p.begin) + ".." + scalarString(p.end) + "]"
+		return path + " IN [" + kind(p.begin) + ".." + kind(p.end) + "]"
 	case prefixPart:
-		return path + " PREFIX " + scalarString(p.value)
+		return path + " PREFIX " + kind(p.value)
 	case notNilPart:
 		return path + " IS NOT NULL"
 	default:
@@ -211,21 +215,6 @@ func queryPathString(qp QueryPath) string {
 		return result
 	default:
 		return "(unknown path)"
-	}
-}
-
-func scalarString(s Scalar) string {
-	switch s.(type) {
-	case StringScalar:
-		return "<string>"
-	case BoolScalar:
-		return "<bool>"
-	case Float64Scalar:
-		return "<number>"
-	case bytesScalar:
-		return "<bytes>"
-	default:
-		return "<scalar>"
 	}
 }
 
