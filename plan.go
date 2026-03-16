@@ -61,7 +61,7 @@ type ReferenceScanFn func(key []byte, value []byte) error
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
-	var docsScanned, docsMatched, scannedBytes, matchedBytes int
+	var docsScanned, docsMatched, docsScannedBytes, docsMatchedBytes int
 
 	err := f.collection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(f.collection.name))
@@ -81,17 +81,17 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		}
 
 		// Wrap walker to count matched documents and bytes
-		matchCounter := func(ref Reference, doc []byte) error {
+		wrappedWalker := func(ref Reference, doc []byte) error {
 			docsMatched++
-			matchedBytes += len(doc)
+			docsMatchedBytes += len(doc)
 			return walker(ref, doc)
 		}
-		scanner := resultScanner(parts, matchCounter, f.collection)
+		scanner := resultScanner(parts, wrappedWalker, f.collection)
 
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
 			docsScanned++
-			scannedBytes += len(bytes)
+			docsScannedBytes += len(bytes)
 			if err := scanner(ref, bytes); err != nil {
 				return err
 			}
@@ -105,9 +105,9 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 			Collection:            f.collection.name,
 			Query:                 f.query,
 			DocumentsScanned:      docsScanned,
-			DocumentsScannedBytes: scannedBytes,
+			DocumentsScannedBytes: docsScannedBytes,
 			DocumentsMatched:      docsMatched,
-			DocumentsMatchedBytes: matchedBytes,
+			DocumentsMatchedBytes: docsMatchedBytes,
 			SuggestedFields:       suggestIndexFields(f.query),
 			IndexUsed:             "",
 			FilterEfficiency:      0.0,
@@ -140,7 +140,7 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 
 func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts := i.index.QueryPartsOutsideIndex(i.query)
-	var docsScanned, docsMatched, scannedBytes, matchedBytes int
+	var docsScanned, docsMatched, docsScannedBytes, docsMatchedBytes int
 
 	// do the IndexScan
 	err := i.collection.db.View(func(tx *bbolt.Tx) error {
@@ -154,14 +154,14 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		iBucket := tx.Bucket([]byte(i.collection.name))
 
 		// Wrap walker to count matched documents and bytes
-		matchCounter := func(ref Reference, doc []byte) error {
+		wrappedWalker := func(ref Reference, doc []byte) error {
 			docsMatched++
-			matchedBytes += len(doc)
+			docsMatchedBytes += len(doc)
 			return walker(ref, doc)
 		}
 
 		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
-		resultScan := resultScanner(queryParts, matchCounter, i.collection)
+		resultScan := resultScanner(queryParts, wrappedWalker, i.collection)
 
 		// Fetch document once and reuse for both counting and scanning (avoids double DB lookup)
 		fetcherWithCounter := func(key []byte, ref []byte) error {
@@ -175,7 +175,7 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 
 			// Count scanned bytes
 			docsScanned++
-			scannedBytes += len(docBytes)
+			docsScannedBytes += len(docBytes)
 
 			// Pass the already-fetched document to the scanner
 			return resultScan(ref, docBytes)
@@ -206,9 +206,9 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 				Collection:            i.collection.name,
 				Query:                 i.query,
 				DocumentsScanned:      docsScanned,
-				DocumentsScannedBytes: scannedBytes,
+				DocumentsScannedBytes: docsScannedBytes,
 				DocumentsMatched:      docsMatched,
-				DocumentsMatchedBytes: matchedBytes,
+				DocumentsMatchedBytes: docsMatchedBytes,
 				SuggestedFields:       suggestIndexFields(i.query),
 				IndexUsed:             i.index.Name(),
 				FilterEfficiency:      efficiency,
