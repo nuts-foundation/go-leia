@@ -57,11 +57,13 @@ type indexScanQueryPlan struct {
 // ReferenceScanFn is a function type which is called with an index key and a document Reference as value
 type ReferenceScanFn func(key []byte, value []byte) error
 
-// documentScanFn is a function type which is called with a document Reference as key and a the document bytes as value
+// documentScanFn is a function type which is called with a document Reference as key and the document bytes as value
 type documentScanFn func(key []byte, value []byte) error
 
 func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
-	return f.collection.db.View(func(tx *bbolt.Tx) error {
+	var docsScanned, docsMatched, docsScannedBytes, docsMatchedBytes int
+
+	err := f.collection.db.View(func(tx *bbolt.Tx) error {
 		bucket := tx.Bucket([]byte(f.collection.name))
 		if bucket == nil {
 			// no bucket means no docs
@@ -77,16 +79,42 @@ func (f fullTableScanQueryPlan) execute(walker DocumentWalker) error {
 		if f.query.parts != nil {
 			parts = f.query.parts
 		}
-		scanner := resultScanner(parts, walker, f.collection)
+
+		// Wrap walker to count matched documents and bytes
+		wrappedWalker := func(ref Reference, doc []byte) error {
+			docsMatched++
+			docsMatchedBytes += len(doc)
+			return walker(ref, doc)
+		}
+		scanner := resultScanner(parts, wrappedWalker, f.collection)
 
 		cursor := bucket.Cursor()
 		for ref, bytes := cursor.First(); bytes != nil; ref, bytes = cursor.Next() {
+			docsScanned++
+			docsScannedBytes += len(bytes)
 			if err := scanner(ref, bytes); err != nil {
 				return err
 			}
 		}
 		return nil
 	})
+
+	// Call callback if configured (only when query has conditions - empty query is intentional scan-all)
+	if err == nil && len(f.query.parts) > 0 && f.collection.queryStatsCallbacks.OnIndexProblem != nil {
+		f.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
+			Collection:            f.collection.name,
+			Query:                 f.query,
+			DocumentsScanned:      docsScanned,
+			DocumentsScannedBytes: docsScannedBytes,
+			DocumentsMatched:      docsMatched,
+			DocumentsMatchedBytes: docsMatchedBytes,
+			UnindexedFields:       suggestIndexFields(f.query.parts),
+			IndexUsed:             "",
+			FilterEfficiency:      0.0,
+		})
+	}
+
+	return err
 }
 
 func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
@@ -112,9 +140,10 @@ func (i indexScanQueryPlan) execute(walker ReferenceScanFn) error {
 
 func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 	queryParts := i.index.QueryPartsOutsideIndex(i.query)
+	var docsScanned, docsMatched, docsScannedBytes, docsMatchedBytes int
 
 	// do the IndexScan
-	return i.collection.db.View(func(tx *bbolt.Tx) error {
+	err := i.collection.db.View(func(tx *bbolt.Tx) error {
 		docBucket := i.collection.documentBucket(tx)
 		if docBucket == nil {
 			// no bucket means no docs
@@ -124,17 +153,70 @@ func (i resultScanQueryPlan) execute(walker DocumentWalker) error {
 		// nil is not possible since adding an index creates the iBucket
 		iBucket := tx.Bucket([]byte(i.collection.name))
 
-		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
-		resultScan := resultScanner(queryParts, walker, i.collection)
+		// Wrap walker to count matched documents and bytes
+		wrappedWalker := func(ref Reference, doc []byte) error {
+			docsMatched++
+			docsMatchedBytes += len(doc)
+			return walker(ref, doc)
+		}
 
-		// fetcher expands references to documents, for each document it calls the resultScan
-		fetcher := documentFetcher(docBucket, resultScan)
+		// resultScanner takes the refs from the indexScan, resolves the document and applies the remaining queryParts
+		resultScan := resultScanner(queryParts, wrappedWalker, i.collection)
+
+		// Fetch document once and reuse for both counting and scanning (avoids double DB lookup)
+		fetcherWithCounter := func(key []byte, ref []byte) error {
+			if docBucket == nil {
+				return nil
+			}
+			docBytes := docBucket.Get(ref)
+			if docBytes == nil {
+				return nil
+			}
+
+			// Count scanned bytes
+			docsScanned++
+			docsScannedBytes += len(docBytes)
+
+			// Pass the already-fetched document to the scanner
+			return resultScan(ref, docBytes)
+		}
 
 		// expander expands the index entry to the actual document
-		expander := indexEntryExpander(fetcher)
+		expander := indexEntryExpander(fetcherWithCounter)
 
 		return i.index.Iterate(iBucket, i.query, expander)
 	})
+
+	// Call callback if configured and threshold is met
+	if err == nil && i.collection.queryStatsCallbacks.OnIndexProblem != nil {
+		threshold := i.collection.queryStatsCallbacks.SuboptimalIndexThreshold
+		// Default threshold is 3 wasted scans (scanned but not matched documents) if set to a negative value
+		if threshold < 0 {
+			threshold = 3
+		}
+
+		wastedScans := docsScanned - docsMatched
+		if wastedScans > threshold {
+			efficiency := 1.0
+			if docsScanned > 0 {
+				efficiency = float64(docsMatched) / float64(docsScanned)
+			}
+
+			i.collection.queryStatsCallbacks.OnIndexProblem(IndexStats{
+				Collection:            i.collection.name,
+				Query:                 i.query,
+				DocumentsScanned:      docsScanned,
+				DocumentsScannedBytes: docsScannedBytes,
+				DocumentsMatched:      docsMatched,
+				DocumentsMatchedBytes: docsMatchedBytes,
+				UnindexedFields:       suggestIndexFields(queryParts),
+				IndexUsed:             i.index.Name(),
+				FilterEfficiency:      efficiency,
+			})
+		}
+	}
+
+	return err
 }
 
 // documentFetcher creates a ReferenceScanFn which is called with a reference, fetches the document and calls the documentScanFn

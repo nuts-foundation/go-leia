@@ -95,13 +95,14 @@ func defaultReferenceCreator(doc Document) Reference {
 }
 
 type collection struct {
-	name           string
-	db             *bbolt.DB
-	indexList      []Index
-	refMake        ReferenceFunc
-	documentLoader ld.DocumentLoader
-	collectionType CollectionType
-	valueCollector valueCollector
+	name                string
+	db                  *bbolt.DB
+	indexList           []Index
+	refMake             ReferenceFunc
+	documentLoader      ld.DocumentLoader
+	collectionType      CollectionType
+	valueCollector      valueCollector
+	queryStatsCallbacks QueryStatsCallbacks
 }
 
 func (c *collection) NewIndex(name string, parts ...FieldIndexer) Index {

@@ -52,7 +52,8 @@ type store struct {
 	collections    map[string]*collection
 	documentLoader ld.DocumentLoader
 	// options is used during configuration
-	options bbolt.Options
+	options             bbolt.Options
+	queryStatsCallbacks QueryStatsCallbacks
 }
 
 // StoreOption is the function type for the Store Options
@@ -70,7 +71,13 @@ func WithDocumentLoader(documentLoader ld.DocumentLoader) StoreOption {
 	return func(store *store) {
 		store.documentLoader = documentLoader
 	}
+}
 
+// WithQueryStatsCallbacks configures callbacks to receive query performance statistics
+func WithQueryStatsCallbacks(callbacks QueryStatsCallbacks) StoreOption {
+	return func(store *store) {
+		store.queryStatsCallbacks = callbacks
+	}
 }
 
 // NewStore creates a new store.
@@ -83,9 +90,10 @@ func NewStore(dbFile string, options ...StoreOption) (Store, error) {
 
 	// store with defaults
 	st := &store{
-		options:        *bbolt.DefaultOptions,
-		collections:    map[string]*collection{},
-		documentLoader: ld.NewDefaultDocumentLoader(nil),
+		options:             *bbolt.DefaultOptions,
+		collections:         map[string]*collection{},
+		documentLoader:      ld.NewDefaultDocumentLoader(nil),
+		queryStatsCallbacks: NoOpQueryStatsCallbacks,
 	}
 
 	// apply options
@@ -114,12 +122,13 @@ func (s *store) Collection(collectionType CollectionType, name string) Collectio
 			panic("unknown collection type")
 		}
 		c = &collection{
-			name:           name,
-			collectionType: collectionType,
-			db:             s.db,
-			documentLoader: s.documentLoader,
-			refMake:        defaultReferenceCreator,
-			valueCollector: vCollector,
+			name:                name,
+			collectionType:      collectionType,
+			db:                  s.db,
+			documentLoader:      s.documentLoader,
+			refMake:             defaultReferenceCreator,
+			valueCollector:      vCollector,
+			queryStatsCallbacks: s.queryStatsCallbacks,
 		}
 		s.collections[name] = c
 	} else if c.collectionType != collectionType {

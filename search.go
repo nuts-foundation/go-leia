@@ -155,6 +155,69 @@ func (q Query) And(part QueryPart) Query {
 	return q
 }
 
+// String returns a human-readable representation of the query for logging.
+// Scalar values are masked (shown as <string>, <number>, <bool>) for security/privacy.
+func (q Query) String() string {
+	if len(q.parts) == 0 {
+		return "Query{}"
+	}
+
+	result := "Query{"
+	for i, part := range q.parts {
+		if i > 0 {
+			result += " AND "
+		}
+		result += queryPartString(part)
+	}
+	result += "}"
+	return result
+}
+
+func queryPartString(part QueryPart) string {
+	path := queryPathString(part.QueryPath())
+
+	kind := func(s Scalar) string {
+		return "<" + s.Kind() + ">"
+	}
+
+	switch p := part.(type) {
+	case eqPart:
+		return path + " = " + kind(p.value)
+	case rangePart:
+		return path + " IN [" + kind(p.begin) + ".." + kind(p.end) + "]"
+	case prefixPart:
+		return path + " PREFIX " + kind(p.value)
+	case notNilPart:
+		return path + " IS NOT NULL"
+	default:
+		return path + " <unknown condition>"
+	}
+}
+
+func queryPathString(qp QueryPath) string {
+	switch p := qp.(type) {
+	case jsonPath:
+		return string(p)
+	case iriPath:
+		if len(p.iris) == 0 {
+			return "(root)"
+		}
+		if len(p.iris) == 1 {
+			return p.iris[0]
+		}
+		result := ""
+		for i, iri := range p.iris {
+			if i > 0 {
+				result += " -> "
+			}
+			result += iri
+		}
+		return result
+	default:
+		return "(unknown path)"
+	}
+}
+
 type eqPart struct {
 	queryPath QueryPath
 	value     Scalar

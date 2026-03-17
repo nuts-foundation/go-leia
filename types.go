@@ -57,9 +57,14 @@ type Scalar interface {
 	Bytes() []byte
 	// value helps in testing
 	value() interface{}
+	Kind() string
 }
 
 type StringScalar string
+
+func (ss StringScalar) Kind() string {
+	return "string"
+}
 
 func (ss StringScalar) Bytes() []byte {
 	return []byte(ss)
@@ -70,6 +75,10 @@ func (ss StringScalar) value() interface{} {
 }
 
 type BoolScalar bool
+
+func (bs BoolScalar) Kind() string {
+	return "bool"
+}
 
 func (bs BoolScalar) Bytes() []byte {
 	if bs {
@@ -83,6 +92,10 @@ func (bs BoolScalar) value() interface{} {
 }
 
 type Float64Scalar float64
+
+func (fs Float64Scalar) Kind() string {
+	return "number"
+}
 
 func (fs Float64Scalar) Bytes() []byte {
 	var buf [8]byte
@@ -99,6 +112,10 @@ type bytesScalar []byte
 
 func (bs bytesScalar) Bytes() []byte {
 	return bs
+}
+
+func (bs bytesScalar) Kind() string {
+	return "bytes"
 }
 
 func (bs bytesScalar) value() interface{} {
